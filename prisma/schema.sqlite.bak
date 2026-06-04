@@ -1,0 +1,226 @@
+// Quran/Arabic School LMS — Prisma schema
+// Provider: sqlite for local dev. For production switch to "postgresql" + update DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Rollen: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER"
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("LEERLING")
+  actief    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  docentKlassen      KlasDocent[]
+  leerlingKlassen    KlasLeerling[]
+  cijfers            Cijfer[]
+  aanwezigheid       Aanwezigheid[]
+  inleveringen       Inlevering[]
+  berichtenVerzonden Bericht[]           @relation("Verzender")
+  berichtenOntvangen Bericht[]           @relation("Ontvanger")
+  hifdhProfiel       HifdhProfiel?
+  ouderVan           OuderLeerling[]     @relation("Ouder")
+  kindVan            OuderLeerling[]     @relation("Kind")
+  resetTokens        PasswordResetToken[]
+}
+
+model Klas {
+  id           String   @id @default(cuid())
+  naam         String
+  beschrijving String?
+  createdAt    DateTime @default(now())
+
+  docenten   KlasDocent[]
+  leerlingen KlasLeerling[]
+  vakken     KlasVak[]
+  lessen     Les[]
+}
+
+// Categorieën: "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG"
+model Vak {
+  id           String   @id @default(cuid())
+  naam         String
+  beschrijving String?
+  categorie    String
+  createdAt    DateTime @default(now())
+
+  klassen  KlasVak[]
+  cijfers  Cijfer[]
+  huiswerk Huiswerk[]
+  lessen   Les[]
+}
+
+model KlasVak {
+  id     String @id @default(cuid())
+  klas   Klas   @relation(fields: [klasId], references: [id])
+  klasId String
+  vak    Vak    @relation(fields: [vakId], references: [id])
+  vakId  String
+
+  @@unique([klasId, vakId])
+}
+
+model KlasDocent {
+  id       String @id @default(cuid())
+  klas     Klas   @relation(fields: [klasId], references: [id])
+  klasId   String
+  docent   User   @relation(fields: [docentId], references: [id])
+  docentId String
+
+  @@unique([klasId, docentId])
+}
+
+model KlasLeerling {
+  id         String @id @default(cuid())
+  klas       Klas   @relation(fields: [klasId], references: [id])
+  klasId     String
+  leerling   User   @relation(fields: [leerlingId], references: [id])
+  leerlingId String
+
+  @@unique([klasId, leerlingId])
+}
+
+model Cijfer {
+  id           String   @id @default(cuid())
+  waarde       Float
+  omschrijving String?
+  datum        DateTime @default(now())
+  vak          Vak      @relation(fields: [vakId], references: [id])
+  vakId        String
+  leerling     User     @relation(fields: [leerlingId], references: [id])
+  leerlingId   String
+}
+
+model Les {
+  id        String   @id @default(cuid())
+  datum     DateTime
+  begintijd String
+  eindtijd  String
+  lokaal    String?
+  klas      Klas     @relation(fields: [klasId], references: [id])
+  klasId    String
+  // Optional: which vak this lesson covers (ensures Klas A hifdh ≠ Klas B hifdh)
+  vak       Vak?     @relation(fields: [vakId], references: [id])
+  vakId     String?
+
+  aanwezigheid Aanwezigheid[]
+  huiswerk     Huiswerk[]
+}
+
+// Status: "AANWEZIG" | "AFWEZIG" | "TE_LAAT" | "GEOORLOOFD"
+model Aanwezigheid {
+  id         String @id @default(cuid())
+  status     String
+  les        Les    @relation(fields: [lesId], references: [id])
+  lesId      String
+  leerling   User   @relation(fields: [leerlingId], references: [id])
+  leerlingId String
+
+  @@unique([lesId, leerlingId])
+}
+
+model Huiswerk {
+  id           String       @id @default(cuid())
+  titel        String
+  beschrijving String?
+  deadline     DateTime?
+  vak          Vak          @relation(fields: [vakId], references: [id])
+  vakId        String
+  les          Les?         @relation(fields: [lesId], references: [id])
+  lesId        String?
+  inleveringen Inlevering[]
+}
+
+model Inlevering {
+  id          String    @id @default(cuid())
+  inhoud      String
+  opmerking   String?   // Docent feedback on this submission
+  opmerkingOp DateTime? // When the remark was last saved
+  createdAt   DateTime  @default(now())
+  huiswerk    Huiswerk  @relation(fields: [huiswerkId], references: [id])
+  huiswerkId  String
+  leerling    User      @relation(fields: [leerlingId], references: [id])
+  leerlingId  String
+
+  @@unique([huiswerkId, leerlingId])
+}
+
+model Bericht {
+  id          String   @id @default(cuid())
+  onderwerp   String
+  inhoud      String
+  gelezen     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  groepId     String?
+  doelLabel   String?
+  verzender   User     @relation("Verzender", fields: [verzenderId], references: [id])
+  verzenderId String
+  ontvanger   User     @relation("Ontvanger", fields: [ontvangerId], references: [id])
+  ontvangerId String
+}
+
+// ── Ouder ↔ Kind koppeling ───────────────────────────────────────────────────
+model OuderLeerling {
+  id         String @id @default(cuid())
+  ouder      User   @relation("Ouder", fields: [ouderId], references: [id])
+  ouderId    String
+  leerling   User   @relation("Kind", fields: [leerlingId], references: [id])
+  leerlingId String
+
+  @@unique([ouderId, leerlingId])
+}
+
+// ── Hifdh (Quranmemorization) tracker ────────────────────────────────────────
+model HifdhProfiel {
+  id             String   @id @default(cuid())
+  leerling       User     @relation(fields: [leerlingId], references: [id])
+  leerlingId     String   @unique
+  // Starting position (surahNr 1-114, ayahNr 1-based)
+  startSurahNr   Int      @default(114)
+  startAyahNr    Int      @default(1)
+  // Current position (updated as student progresses)
+  huidigeSurahNr Int      @default(114)
+  huidigeAyahNr  Int      @default(1)
+  // Weekly target in ayaat
+  ayaatPerWeek   Int      @default(5)
+  opmerkingen    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  taken HifdhTaak[]
+}
+
+// type: "NIEUW" | "HERHALING"
+model HifdhTaak {
+  id         String       @id @default(cuid())
+  profiel    HifdhProfiel @relation(fields: [profielId], references: [id], onDelete: Cascade)
+  profielId  String
+  type       String       // "NIEUW" | "HERHALING"
+  surahNr    Int
+  vanAyah    Int
+  totAyah    Int
+  weekStart  DateTime     // Monday of the week this task belongs to
+  voltooid   Boolean      @default(false)
+  voltooidOp DateTime?
+  createdAt  DateTime     @default(now())
+}
+
+// ── Password reset tokens ─────────────────────────────────────────────────────
+model PasswordResetToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  gebruiker   User     @relation(fields: [gebruikerId], references: [id])
+  gebruikerId String
+  verlooptOp  DateTime
+  gebruikt    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}

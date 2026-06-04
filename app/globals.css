@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-arabic: var(--font-arabic);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Arabic font class — applied by LanguageContext when lang = "ar" */
+html.font-arabic body,
+html.font-arabic input,
+html.font-arabic textarea,
+html.font-arabic select,
+html.font-arabic button {
+  font-family: var(--font-arabic), "Noto Sans Arabic", "Segoe UI", sans-serif;
+}
+
+/* Tailwind v4 — visible text in form elements */
+input, textarea, select {
+  color: #111827;
+}
+
+* {
+  color: inherit;
+}
+
+/* RTL layout support */
+[dir="rtl"] .sidebar-flip {
+  left: auto;
+  right: 0;
+}
