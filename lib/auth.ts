@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
-type Role = "ADMIN" | "DOCENT" | "LEERLING";
+type Role = "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
 
 declare module "next-auth" {
   interface Session {
