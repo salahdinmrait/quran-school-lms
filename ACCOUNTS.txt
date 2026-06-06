@@ -1,0 +1,207 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                   JADWAL LMS — TEST ACCOUNTS                               ║
+║                   https://quran-school-lms.vercel.app                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ADMIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  admin@jadwal.test                    Admin@2024
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DOCENTEN                             Wachtwoord: Docent@2024
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  docent1@jadwal.test                  Ustadh Ibrahim Al-Karim  →  Klas 1
+  docent2@jadwal.test                  Ustadha Maryam Hassan    →  Klas 2
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  LEERLINGEN                           Wachtwoord: Leerling@2024
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [ Klas 1 — leerlingen 1–50 ]
+
+   1.  Omar Al-Rashidi              omar.al.rashidi@leerling.test
+   2.  Leila Al-Rashidi             leila.al.rashidi@leerling.test
+   3.  Yusuf Al-Rashidi             yusuf.al.rashidi@leerling.test
+   4.  Emma De Vries                emma.de.vries@leerling.test
+   5.  Lotte De Vries               lotte.de.vries@leerling.test
+   6.  Bas De Vries                 bas.de.vries@leerling.test
+   7.  Kofi Mensah                  kofi.mensah@leerling.test
+   8.  Akosua Mensah                akosua.mensah@leerling.test
+   9.  Sofia Garcia                 sofia.garcia@leerling.test
+  10.  Carlos Garcia                carlos.garcia@leerling.test
+  11.  Isabel Garcia                isabel.garcia@leerling.test
+  12.  Hana Yamamoto                hana.yamamoto@leerling.test
+  13.  Ren Yamamoto                  ren.yamamoto@leerling.test
+  14.  Adaeze Okonkwo               adaeze.okonkwo@leerling.test
+  15.  Chukwuemeka Okonkwo          chukwuemeka.okonkwo@leerling.test
+  16.  Ngozi Okonkwo                ngozi.okonkwo@leerling.test
+  17.  Anika Patel                  anika.patel@leerling.test
+  18.  Dev Patel                    dev.patel@leerling.test
+  19.  Jonas Muller                 jonas.muller@leerling.test
+  20.  Anna Muller                  anna.muller@leerling.test
+  21.  Felix Muller                 felix.muller@leerling.test
+  22.  Rania Benali                 rania.benali@leerling.test
+  23.  Hamza Benali                 hamza.benali@leerling.test
+  24.  Maja Johansson               maja.johansson@leerling.test
+  25.  Axel Johansson               axel.johansson@leerling.test
+  26.  Elin Johansson               elin.johansson@leerling.test
+  27.  Pablo Fernandez              pablo.fernandez@leerling.test
+  28.  Lucia Fernandez              lucia.fernandez@leerling.test
+  29.  Kweku Nkrumah                kweku.nkrumah@leerling.test
+  30.  Ama Nkrumah                  ama.nkrumah@leerling.test
+  31.  Camille Dubois               camille.dubois@leerling.test
+  32.  Hugo Dubois                  hugo.dubois@leerling.test
+  33.  Manon Dubois                 manon.dubois@leerling.test
+  34.  Ziad Al-Farouqi              ziad.al.farouqi@leerling.test
+  35.  Sara Al-Farouqi              sara.al.farouqi@leerling.test
+  36.  Sanne Bakker                 sanne.bakker@leerling.test
+  37.  Daan Bakker                  daan.bakker@leerling.test
+  38.  Fleur Bakker                 fleur.bakker@leerling.test
+  39.  Mia Andersen                 mia.andersen@leerling.test
+  40.  Gabriel Santos               gabriel.santos@leerling.test
+  41.  Ana Santos                   ana.santos@leerling.test
+  42.  Younes Ibrahim               younes.ibrahim@leerling.test
+  43.  Dina Ibrahim                 dina.ibrahim@leerling.test
+  44.  Kareem Ibrahim               kareem.ibrahim@leerling.test
+  45.  Ji-ho Kim                    ji.ho.kim@leerling.test
+  46.  Soo-yeon Kim                 soo.yeon.kim@leerling.test
+  47.  Giulia Rossi                 giulia.rossi@leerling.test
+  48.  Matteo Rossi                 matteo.rossi@leerling.test
+  49.  Lara Boutros                 lara.boutros@leerling.test
+  50.  Joost Smit                   joost.smit@leerling.test
+
+  [ Klas 2 — leerlingen 51–100 ]
+
+  51.  Lieke Smit                   lieke.smit@leerling.test
+  52.  Aminata Diallo               aminata.diallo@leerling.test
+  53.  Ibrahima Diallo              ibrahima.diallo@leerling.test
+  54.  Zofia Nowak                  zofia.nowak@leerling.test
+  55.  Piotr Nowak                  piotr.nowak@leerling.test
+  56.  Kasia Nowak                  kasia.nowak@leerling.test
+  57.  Nabila Chowdhury             nabila.chowdhury@leerling.test
+  58.  Rifat Chowdhury              rifat.chowdhury@leerling.test
+  59.  Theo Moreau                  theo.moreau@leerling.test
+  60.  Chloe Moreau                 chloe.moreau@leerling.test
+  61.  Louis Moreau                 louis.moreau@leerling.test
+  62.  Kwabena Osei                 kwabena.osei@leerling.test
+  63.  Roos Jansen                  roos.jansen@leerling.test
+  64.  Tim Jansen                   tim.jansen@leerling.test
+  65.  Lina El-Masri                lina.el.masri@leerling.test
+  66.  Khaled El-Masri              khaled.el.masri@leerling.test
+  67.  Michal Kowalski              michal.kowalski@leerling.test
+  68.  Zosia Kowalski               zosia.kowalski@leerling.test
+  69.  Mira Steenberg               mira.steenberg@leerling.test
+  70.  Tom van Dijk                 tom.van.dijk@leerling.test
+  71.  Aisha Rashid                 aisha.rashid@leerling.test
+  72.  Lena Bauer                   lena.bauer@leerling.test
+  73.  Musa Traore                  musa.traore@leerling.test
+  74.  Nina Olsen                   nina.olsen@leerling.test
+  75.  Adam El-Khatib               adam.el.khatib@leerling.test
+  76.  Zoe Papadopoulos             zoe.papadopoulos@leerling.test
+  77.  Bilal Hamdouni               bilal.hamdouni@leerling.test
+  78.  Yara Bergmann                yara.bergmann@leerling.test
+  79.  Leo Svensson                 leo.svensson@leerling.test
+  80.  Amina Coulibaly              amina.coulibaly@leerling.test
+  81.  Finn Larsen                  finn.larsen@leerling.test
+  82.  Nour Aziz                    nour.aziz@leerling.test
+  83.  Vera Novak                   vera.novak@leerling.test
+  84.  Julian Castro                julian.castro@leerling.test
+  85.  Tanya Boateng                tanya.boateng@leerling.test
+  86.  Emir Yilmaz                  emir.yilmaz@leerling.test
+  87.  Grace Oduya                  grace.oduya@leerling.test
+  88.  Sam Visser                   sam.visser@leerling.test
+  89.  Reem Saleh                   reem.saleh@leerling.test
+  90.  Tariq Hassan                 tariq.hassan@leerling.test
+  91.  Elena Popescu                elena.popescu@leerling.test
+  92.  Sven Eriksson                sven.eriksson@leerling.test
+  93.  Fatou Sow                    fatou.sow@leerling.test
+  94.  Mateus Oliveira              mateus.oliveira@leerling.test
+  95.  Yuna Park                    yuna.park@leerling.test
+  96.  Celine Fontaine              celine.fontaine@leerling.test
+  97.  Idris Mansour                idris.mansour@leerling.test
+  98.  Petra Horvat                 petra.horvat@leerling.test
+  99.  Kenji Tanaka                 kenji.tanaka@leerling.test
+ 100.  Layla Qasim                  layla.qasim@leerling.test
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OUDERS (62 unieke accounts)          Wachtwoord: Ouder@2024
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Naam                    Email                                Kinderen
+  ─────────────────────────────────────────────────────────────────────────
+  Amir Qasim              amir.qasim@ouder.test                Layla Qasim
+  Anders Johansson        anders.johansson@ouder.test          Maja, Axel, Elin Johansson
+  Antoine Moreau          antoine.moreau@ouder.test            Theo, Chloe, Louis Moreau
+  Arjan Visser            arjan.visser@ouder.test              Sam Visser
+  Ato Nkrumah             ato.nkrumah@ouder.test               Kweku, Ama Nkrumah
+  Bilal Rashid            bilal.rashid@ouder.test              Aisha Rashid
+  Bjorn Olsen             bjorn.olsen@ouder.test               Nina Olsen
+  Bo Eriksson             bo.eriksson@ouder.test               Sven Eriksson
+  Bruno Oliveira          bruno.oliveira@ouder.test            Mateus Oliveira
+  Diego Castro            diego.castro@ouder.test              Julian Castro
+  Dirk Bergmann           dirk.bergmann@ouder.test             Yara Bergmann
+  Emeka Okonkwo           emeka.okonkwo@ouder.test             Adaeze, Chukwuemeka, Ngozi Okonkwo
+  Erik De Vries           erik.de.vries@ouder.test             Emma, Lotte, Bas De Vries
+  Ernest Boateng          ernest.boateng@ouder.test            Tanya Boateng
+  Fares Aziz              fares.aziz@ouder.test                Nour Aziz
+  Farouk Mansour          farouk.mansour@ouder.test            Idris Mansour
+  Felipe Santos           felipe.santos@ouder.test             Gabriel, Ana Santos
+  Georges Boutros         georges.boutros@ouder.test           Lara Boutros
+  Hans Svensson           hans.svensson@ouder.test             Leo Svensson
+  Hassan Ibrahim          hassan.ibrahim@ouder.test            Younes, Dina, Kareem Ibrahim
+  Henk Jansen             henk.jansen@ouder.test               Roos, Tim Jansen
+  Hiroshi Yamamoto        hiroshi.yamamoto@ouder.test          Hana, Ren Yamamoto
+  Ion Popescu             ion.popescu@ouder.test               Elena Popescu
+  Jae-won Kim             jae.won.kim@ouder.test               Ji-ho, Soo-yeon Kim
+  Jan Steenberg           jan.steenberg@ouder.test             Mira Steenberg
+  Kees Smit               kees.smit@ouder.test                 Joost, Lieke Smit
+  Khalid Al-Rashidi       khalid.al.rashidi@ouder.test         Omar, Leila, Yusuf Al-Rashidi
+  Klaus Bauer             klaus.bauer@ouder.test               Lena Bauer
+  Kwame Mensah            kwame.mensah@ouder.test              Kofi, Akosua Mensah
+  Lars Andersen           lars.andersen@ouder.test             Mia Andersen
+  Laurent Dubois          laurent.dubois@ouder.test            Camille, Hugo, Manon Dubois
+  Mahmoud Hassan          mahmoud.hassan@ouder.test            Tariq Hassan
+  Mamadou Diallo          mamadou.diallo@ouder.test            Aminata, Ibrahima Diallo
+  Marco Rossi             marco.rossi@ouder.test               Giulia, Matteo Rossi
+  Marek Nowak             marek.nowak@ouder.test               Zofia, Piotr, Kasia Nowak
+  Mehmet Yilmaz           mehmet.yilmaz@ouder.test             Emir Yilmaz
+  Miguel Garcia           miguel.garcia@ouder.test             Sofia, Carlos, Isabel Garcia
+  Nana Osei               nana.osei@ouder.test                 Kwabena Osei
+  Nour El-Khatib          nour.el.khatib@ouder.test            Adam El-Khatib
+  Oumar Sow               oumar.sow@ouder.test                 Fatou Sow
+  Pascal Fontaine         pascal.fontaine@ouder.test           Celine Fontaine
+  Pavel Novak             pavel.novak@ouder.test               Vera Novak
+  Peter Bakker            peter.bakker@ouder.test              Sanne, Daan, Fleur Bakker
+  Rajesh Patel            rajesh.patel@ouder.test              Anika, Dev Patel
+  Rashed Chowdhury        rashed.chowdhury@ouder.test          Nabila, Rifat Chowdhury
+  Ricardo Fernandez       ricardo.fernandez@ouder.test         Pablo, Lucia Fernandez
+  Rob van Dijk            rob.van.dijk@ouder.test              Tom van Dijk
+  Said Hamdouni           said.hamdouni@ouder.test             Bilal Hamdouni
+  Samir El-Masri          samir.el.masri@ouder.test            Lina, Khaled El-Masri
+  Sekou Coulibaly         sekou.coulibaly@ouder.test           Amina Coulibaly
+  Seydou Traore           seydou.traore@ouder.test             Musa Traore
+  Shiro Tanaka            shiro.tanaka@ouder.test              Kenji Tanaka
+  Stavros Papadopoulos    stavros.papadopoulos@ouder.test      Zoe Papadopoulos
+  Stjepan Horvat          stjepan.horvat@ouder.test            Petra Horvat
+  Sung-jin Park           sung.jin.park@ouder.test             Yuna Park
+  Tariq Al-Farouqi        tariq.al.farouqi@ouder.test          Ziad, Sara Al-Farouqi
+  Thomas Muller           thomas.muller@ouder.test             Jonas, Anna, Felix Muller
+  Tomasz Kowalski         tomasz.kowalski@ouder.test           Michal, Zosia Kowalski
+  Torben Larsen           torben.larsen@ouder.test             Finn Larsen
+  Victor Oduya            victor.oduya@ouder.test              Grace Oduya
+  Walid Saleh             walid.saleh@ouder.test               Reem Saleh
+  Yassine Benali          yassine.benali@ouder.test            Rania, Hamza Benali
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OVERZICHT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Totaal accounts : 165
+  Admin           : 1    →  Admin@2024
+  Docenten        : 2    →  Docent@2024
+  Leerlingen      : 100  →  Leerling@2024
+  Ouders          : 62   →  Ouder@2024
+
+  Klassen  : Klas 1 (lln 1–50) · Klas 2 (lln 51–100)
+  Vakken   : Hifdh · Tajweed · Arabisch · Fiqh · Sira
+  Site     : https://quran-school-lms.vercel.app

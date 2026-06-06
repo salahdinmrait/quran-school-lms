@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createTakenForProfiel } from "@/lib/hifdh-utils";
 
 // GET /api/hifdh — docent/admin: get all hifdh profielen for their leerlingen
 export async function GET() {
@@ -9,7 +10,6 @@ export async function GET() {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  // Docents see only leerlingen in their klassen
   const where =
     session.user.role === "DOCENT"
       ? {
@@ -36,6 +36,7 @@ export async function GET() {
 }
 
 // POST /api/hifdh — create or update hifdh profiel for a leerling
+// On CREATE: automatically generates 6 weeks of tasks + linked huiswerk
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "DOCENT")) {
@@ -48,6 +49,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Check if this is a new profile or an update
+    const existing = await prisma.hifdhProfiel.findUnique({ where: { leerlingId } });
+    const isNew = !existing;
+
     const profiel = await prisma.hifdhProfiel.upsert({
       where: { leerlingId },
       create: {
@@ -70,6 +75,21 @@ export async function POST(req: NextRequest) {
         taken: { orderBy: { weekStart: "asc" } },
       },
     });
+
+    // Auto-generate 6 weeks of tasks for new profiles
+    if (isNew) {
+      await createTakenForProfiel(profiel.id);
+      // Re-fetch with taken included
+      const full = await prisma.hifdhProfiel.findUnique({
+        where: { id: profiel.id },
+        include: {
+          leerling: { select: { id: true, name: true, email: true } },
+          taken: { orderBy: { weekStart: "asc" } },
+        },
+      });
+      return NextResponse.json(full, { status: 201 });
+    }
+
     return NextResponse.json(profiel, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Aanmaken mislukt" }, { status: 500 });

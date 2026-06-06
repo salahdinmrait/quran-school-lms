@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
 import { Loader2, CheckCircle, Clock, Trophy, MessageSquare } from "lucide-react";
@@ -49,8 +46,6 @@ export default function HuiswerkPage() {
   const [huiswerk, setHuiswerk] = useState<HuiswerkItem[]>([]);
   const [rankings, setRankings] = useState<KlasRanking[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const [inhoud, setInhoud] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     Promise.all([
@@ -62,37 +57,6 @@ export default function HuiswerkPage() {
       setIsFetching(false);
     }).catch(() => setIsFetching(false));
   }, []);
-
-  const handleInleveren = async (huiswerkId: string) => {
-    const tekst = inhoud[huiswerkId];
-    if (!tekst?.trim()) { toast.error("Voer eerst een antwoord in."); return; }
-
-    setLoading((p) => ({ ...p, [huiswerkId]: true }));
-    try {
-      const res = await fetch("/api/leerling/huiswerk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ huiswerkId, inhoud: tekst }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success("Huiswerk ingeleverd!");
-      setHuiswerk((prev) =>
-        prev.map((h) =>
-          h.id === huiswerkId
-            ? {
-                ...h,
-                ingeLeverd: true,
-                inlevering: { inhoud: tekst, createdAt: new Date().toISOString(), opmerking: null, opmerkingOp: null },
-              }
-            : h
-        )
-      );
-    } catch {
-      toast.error("Inleveren mislukt. Probeer opnieuw.");
-    } finally {
-      setLoading((p) => ({ ...p, [huiswerkId]: false }));
-    }
-  };
 
   if (isFetching) {
     return (
@@ -111,6 +75,8 @@ export default function HuiswerkPage() {
         <h1 className="text-2xl font-bold text-gray-900">Huiswerk</h1>
         <p className="text-gray-500 mt-1 text-sm">
           {open.length} openstaand{open.length !== 1 ? "e" : ""} opdracht{open.length !== 1 ? "en" : ""}
+          {" · "}
+          {ingeleverd.length} afgevinkt
         </p>
       </div>
 
@@ -133,11 +99,7 @@ export default function HuiswerkPage() {
                 {r.top3.map((item) => (
                   <div
                     key={item.leerling.id}
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
-                      item.leerling.id === r.top3[0]?.leerling.id && r.eigenPositie === item.positie
-                        ? "border-amber-300 bg-amber-50"
-                        : "border-gray-100 bg-white"
-                    }`}
+                    className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2"
                   >
                     <span className="text-xl w-8 text-center">{MEDAL[item.positie - 1] ?? `#${item.positie}`}</span>
                     <span className="flex-1 text-sm font-medium text-gray-900">{item.leerling.name}</span>
@@ -147,8 +109,6 @@ export default function HuiswerkPage() {
                     </div>
                   </div>
                 ))}
-
-                {/* Own position if not in top 3 */}
                 {r.eigenPositie !== null && r.eigenPositie > 3 && (
                   <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 mt-1">
                     <span className="text-sm font-bold text-gray-500 w-8 text-center">#{r.eigenPositie}</span>
@@ -165,24 +125,24 @@ export default function HuiswerkPage() {
         </Card>
       ))}
 
-      {/* ── Open huiswerk ───────────────────────────────────────────── */}
+      {/* ── Openstaand ─────────────────────────────────────────────── */}
       {open.length > 0 && (
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-amber-500" />
             Openstaand ({open.length})
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {open.map((hw) => (
               <Card key={hw.id} className="border-amber-100">
-                <CardHeader className="pb-3">
+                <CardContent className="py-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <CardTitle className="text-base">{hw.titel}</CardTitle>
+                      <p className="text-sm font-semibold text-gray-800">{hw.titel}</p>
                       <VakBadge categorie={hw.vak.categorie} className="mt-1" />
                     </div>
                     {hw.deadline && (
-                      <p className="text-xs text-red-500 whitespace-nowrap">
+                      <p className="text-xs text-red-500 whitespace-nowrap shrink-0">
                         Deadline: {new Date(hw.deadline).toLocaleDateString("nl-NL")}
                       </p>
                     )}
@@ -190,24 +150,9 @@ export default function HuiswerkPage() {
                   {hw.beschrijving && (
                     <p className="text-sm text-gray-500 mt-2">{hw.beschrijving}</p>
                   )}
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    placeholder="Typ hier uw antwoord..."
-                    value={inhoud[hw.id] ?? ""}
-                    onChange={(e) => setInhoud((p) => ({ ...p, [hw.id]: e.target.value }))}
-                    rows={3}
-                    className="mb-3"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => handleInleveren(hw.id)}
-                    disabled={loading[hw.id]}
-                    className="bg-green-700 hover:bg-green-800 text-white"
-                  >
-                    {loading[hw.id] && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                    Inleveren
-                  </Button>
+                  <p className="text-xs text-gray-400 mt-3 italic">
+                    Wordt afgevinkt door de docent.
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -215,28 +160,21 @@ export default function HuiswerkPage() {
         </div>
       )}
 
-      {/* ── Ingeleverd ─────────────────────────────────────────────── */}
+      {/* ── Afgevinkt ──────────────────────────────────────────────── */}
       {ingeleverd.length > 0 && (
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-600" />
-            Ingeleverd ({ingeleverd.length})
+            Afgevinkt ({ingeleverd.length})
           </h2>
           <div className="space-y-3">
             {ingeleverd.map((hw) => (
               <Card key={hw.id} className="border-green-100 bg-green-50/30">
                 <CardContent className="py-4 space-y-2">
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-gray-800">{hw.titel}</p>
                     <VakBadge categorie={hw.vak.categorie} />
                   </div>
-
-                  {/* Submitted content */}
-                  {hw.inlevering && (
-                    <div className="rounded bg-white border border-green-100 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">
-                      {hw.inlevering.inhoud}
-                    </div>
-                  )}
 
                   {/* Docent opmerking */}
                   {hw.inlevering?.opmerking && (

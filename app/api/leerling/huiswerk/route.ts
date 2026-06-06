@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -51,29 +51,4 @@ export async function GET() {
   return NextResponse.json(result);
 }
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "LEERLING") {
-    return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
-  }
-
-  const leerlingId = session.user.id;
-
-  try {
-    const { huiswerkId, inhoud } = await req.json();
-
-    if (!huiswerkId || !inhoud?.trim()) {
-      return NextResponse.json({ error: "Vereiste velden ontbreken" }, { status: 400 });
-    }
-
-    const inlevering = await prisma.inlevering.upsert({
-      where: { huiswerkId_leerlingId: { huiswerkId, leerlingId } },
-      create: { huiswerkId, leerlingId, inhoud },
-      update: { inhoud },
-    });
-
-    return NextResponse.json(inlevering, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Inleveren mislukt" }, { status: 500 });
-  }
-}
+// POST removed: only docents can mark homework done via /api/docent/huiswerk/afvinken

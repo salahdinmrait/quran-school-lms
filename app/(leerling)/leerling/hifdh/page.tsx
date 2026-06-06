@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { BookOpen, CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SURAHS, getSurah } from "@/lib/quran";
 
 interface HifdhTaak {
   id: string;
-  type: string; // "NIEUW" | "HERHALING"
+  type: string;
   surahNr: number;
   vanAyah: number;
   totAyah: number;
@@ -47,7 +46,6 @@ function getMondayOfDate(d: Date): Date {
 export default function LeerlingHifdhPage() {
   const [profiel, setProfiel] = useState<HifdhProfiel | null>(null);
   const [isFetching, setIsFetching] = useState(true);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
 
@@ -58,7 +56,6 @@ export default function LeerlingHifdhPage() {
       .catch(() => setIsFetching(false));
   }, []);
 
-  // Group taken by week
   const weekGroups: Record<string, HifdhTaak[]> = {};
   for (const taak of profiel?.taken ?? []) {
     const key = taak.weekStart.slice(0, 10);
@@ -66,10 +63,8 @@ export default function LeerlingHifdhPage() {
     weekGroups[key].push(taak);
   }
 
-  // Find current week
   const thisMonday = getMondayOfDate(new Date()).toISOString().slice(0, 10);
 
-  // Set current week open by default
   useEffect(() => {
     if (weekGroups[thisMonday] && !expandedWeek) {
       setExpandedWeek(thisMonday);
@@ -77,48 +72,15 @@ export default function LeerlingHifdhPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profiel]);
 
-  async function toggleTaak(taak: HifdhTaak) {
-    setTogglingId(taak.id);
-    try {
-      const res = await fetch(`/api/hifdh/taken/${taak.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voltooid: !taak.voltooid }),
-      });
-      if (!res.ok) throw new Error();
-      setProfiel((prev) => {
-        if (!prev) return prev;
-        const newTaken = prev.taken.map((t) =>
-          t.id === taak.id ? { ...t, voltooid: !taak.voltooid, voltooidOp: !taak.voltooid ? new Date().toISOString() : null } : t
-        );
-        // Update current position if NIEUW was completed
-        let updated = { ...prev, taken: newTaken };
-        if (!taak.voltooid && taak.type === "NIEUW") {
-          updated = { ...updated, huidigeSurahNr: taak.surahNr, huidigeAyahNr: taak.totAyah };
-        }
-        return updated;
-      });
-      toast.success(taak.voltooid ? "Taak gemarkeerd als openstaand." : "✓ Taak voltooid!");
-    } catch {
-      toast.error("Bijwerken mislukt.");
-    } finally {
-      setTogglingId(null);
-    }
-  }
-
-  // Progress visualization — which surahs memorized
   function getSurahStatus(surahNr: number): "voltooid" | "bezig" | "open" {
     if (!profiel) return "open";
     const startNr = profiel.startSurahNr;
     const huidigNr = profiel.huidigeSurahNr;
-    // Going from higher nr to lower (juz 30 → juz 1 direction) OR lower to higher
-    // We assume memorization goes from startSurahNr DOWNWARD (common: start at 114, go to 1)
     if (startNr >= surahNr && surahNr > huidigNr) return "voltooid";
     if (surahNr === huidigNr) return "bezig";
     return "open";
   }
 
-  // Stats
   const totalTaken = profiel?.taken.length ?? 0;
   const voltooide = profiel?.taken.filter((t) => t.voltooid).length ?? 0;
   const niuweTaken = profiel?.taken.filter((t) => t.type === "NIEUW") ?? [];
@@ -144,7 +106,7 @@ export default function LeerlingHifdhPage() {
             <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
             <p className="text-gray-500 font-medium">Nog geen hifdh-profiel aangemaakt</p>
             <p className="text-gray-400 text-sm mt-1">
-              Uw docent of beheerder moet eerst een hifdh-profiel voor u aanmaken.
+              Uw docent moet eerst een hifdh-profiel voor u aanmaken.
             </p>
           </CardContent>
         </Card>
@@ -162,7 +124,7 @@ export default function LeerlingHifdhPage() {
         <p className="text-gray-500 mt-1 text-sm">Uw Quran memorisatie voortgang.</p>
       </div>
 
-      {/* Overview cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-green-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-green-700">{voltooide}</p>
@@ -191,7 +153,7 @@ export default function LeerlingHifdhPage() {
               onClick={() => setShowProgress((v) => !v)}
               className="text-xs text-green-700 hover:underline flex items-center gap-1"
             >
-              {showProgress ? "Verberg voortgang" : "Toon alle surahs"}
+              {showProgress ? "Verberg" : "Toon alle surahs"}
               {showProgress ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           </div>
@@ -209,18 +171,14 @@ export default function LeerlingHifdhPage() {
               <p className="text-xs text-gray-500">Ayah {profiel.huidigeAyahNr}</p>
             </div>
           </div>
-
-          <div>
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>Doel: {profiel.ayaatPerWeek} ayaat/week</span>
-              {profiel.opmerkingen && <span className="text-amber-600 italic">{profiel.opmerkingen}</span>}
-            </div>
+          <div className="text-xs text-gray-500">
+            Doel: {profiel.ayaatPerWeek} ayaat/week
+            {profiel.opmerkingen && <span className="ml-2 text-amber-600 italic">· {profiel.opmerkingen}</span>}
           </div>
 
-          {/* Surah progress grid (juz 30 first, others collapsed) */}
           {showProgress && (
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-600 mb-2">Juz 30 (beginnerssurahs)</p>
+              <p className="text-xs font-medium text-gray-600 mb-2">Juz 30</p>
               <div className="flex flex-wrap gap-1.5">
                 {SURAHS.filter((s) => s.juz === 30).reverse().map((surah) => {
                   const status = getSurahStatus(surah.nr);
@@ -228,7 +186,7 @@ export default function LeerlingHifdhPage() {
                     <div
                       key={surah.nr}
                       title={`${surah.naamAr} (${surah.naam}) — ${surah.ayaat} ayaat`}
-                      className={`rounded px-2 py-1 text-xs font-medium border cursor-default transition-colors ${
+                      className={`rounded px-2 py-1 text-xs font-medium border cursor-default ${
                         status === "voltooid"
                           ? "bg-green-100 border-green-300 text-green-800"
                           : status === "bezig"
@@ -247,13 +205,17 @@ export default function LeerlingHifdhPage() {
         </CardContent>
       </Card>
 
-      {/* Weekly tasks */}
+      {/* Weekly tasks — read-only */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Weekelijkse taken</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Weekelijkse taken</h2>
+          <p className="text-xs text-gray-400 italic">Wordt afgevinkt door de docent</p>
+        </div>
+
         {Object.keys(weekGroups).length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-gray-400 text-sm">
-              Nog geen taken toegewezen. Uw docent voegt taken toe.
+              Nog geen taken. Uw docent voegt ze toe.
             </CardContent>
           </Card>
         ) : (
@@ -299,35 +261,21 @@ export default function LeerlingHifdhPage() {
                     <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                       {taken.map((taak) => {
                         const surah = getSurah(taak.surahNr);
-                        const isToggling = togglingId === taak.id;
                         return (
                           <div
                             key={taak.id}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 border transition-colors ${
-                              taak.voltooid
-                                ? "bg-green-50 border-green-200"
-                                : "bg-white border-gray-200 hover:border-green-300"
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 border ${
+                              taak.voltooid ? "bg-green-50 border-green-200" : "bg-white border-gray-200"
                             }`}
                           >
-                            <button
-                              onClick={() => toggleTaak(taak)}
-                              disabled={isToggling}
-                              className="shrink-0"
-                            >
-                              {isToggling ? (
-                                <Loader2 className="h-5 w-5 text-green-600 animate-spin" />
-                              ) : taak.voltooid ? (
-                                <CheckCircle className="h-5 w-5 text-green-600" />
-                              ) : (
-                                <Circle className="h-5 w-5 text-gray-300 hover:text-green-400" />
-                              )}
-                            </button>
+                            {taak.voltooid
+                              ? <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                              : <Circle className="h-5 w-5 text-gray-300 shrink-0" />
+                            }
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`text-xs rounded px-1.5 py-0.5 font-medium ${
-                                  taak.type === "NIEUW"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-purple-100 text-purple-700"
+                                  taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
                                 }`}>
                                   {taak.type === "NIEUW" ? "Nieuw" : "Herhaling"}
                                 </span>
@@ -336,9 +284,7 @@ export default function LeerlingHifdhPage() {
                                 </p>
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                Ayah {taak.vanAyah} – {taak.totAyah}
-                                {" · "}
-                                {taak.totAyah - taak.vanAyah + 1} ayaat
+                                Ayah {taak.vanAyah} – {taak.totAyah} · {taak.totAyah - taak.vanAyah + 1} ayaat
                               </p>
                             </div>
                             {taak.voltooid && taak.voltooidOp && (

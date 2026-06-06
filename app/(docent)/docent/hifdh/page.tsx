@@ -37,6 +37,7 @@ export default function DocentHifdhPage() {
   const [showProfielForm, setShowProfielForm] = useState(false);
   const [savingProfiel, setSavingProfiel] = useState(false);
   const [savingTaak, setSavingTaak] = useState<string | null>(null); // profielId
+  const [togglingTaakId, setTogglingTaakId] = useState<string | null>(null);
 
   const [profielForm, setProfielForm] = useState({
     leerlingId: "", startSurahNr: "114", startAyahNr: "1",
@@ -133,6 +134,34 @@ export default function DocentHifdhPage() {
       toast.error(e instanceof Error ? e.message : "Mislukt.");
     } finally {
       setSavingTaak(null);
+    }
+  }
+
+  async function toggleTaak(profielId: string, taak: HifdhTaak) {
+    setTogglingTaakId(taak.id);
+    try {
+      const res = await fetch(`/api/hifdh/taken/${taak.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voltooid: !taak.voltooid }),
+      });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      toast.success(taak.voltooid ? "Taak gemarkeerd als openstaand." : `✓ Taak voltooid voor leerling.`);
+      setProfielen((prev) => prev.map((p) =>
+        p.id === profielId
+          ? { ...p, taken: p.taken.map((t) => t.id === taak.id ? { ...t, voltooid: updated.voltooid, voltooidOp: updated.voltooidOp } : t) }
+          : p
+      ));
+      // Reload profiel to get any new auto-generated tasks
+      if (!taak.voltooid) {
+        const refreshed = await fetch("/api/hifdh").then((r) => r.json());
+        if (Array.isArray(refreshed)) setProfielen(refreshed);
+      }
+    } catch {
+      toast.error("Bijwerken mislukt.");
+    } finally {
+      setTogglingTaakId(null);
     }
   }
 
@@ -315,12 +344,22 @@ export default function DocentHifdhPage() {
                             <div className="space-y-1.5">
                               {taken.map((taak) => {
                                 const surah = getSurah(taak.surahNr);
+                                const isToggling = togglingTaakId === taak.id;
                                 return (
                                   <div key={taak.id} className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm ${taak.voltooid ? "bg-green-50" : "bg-gray-50"}`}>
-                                    {taak.voltooid
-                                      ? <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                                      : <Circle className="h-3.5 w-3.5 text-gray-300 shrink-0" />
-                                    }
+                                    <button
+                                      onClick={() => !isToggling && toggleTaak(profiel.id, taak)}
+                                      disabled={isToggling}
+                                      title={taak.voltooid ? "Klik om te openen" : "Klik om af te vinken"}
+                                      className="shrink-0"
+                                    >
+                                      {isToggling
+                                        ? <Loader2 className="h-3.5 w-3.5 text-green-600 animate-spin" />
+                                        : taak.voltooid
+                                        ? <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                                        : <Circle className="h-3.5 w-3.5 text-gray-300 hover:text-green-500" />
+                                      }
+                                    </button>
                                     <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
                                       {taak.type === "NIEUW" ? "Nieuw" : "Herh."}
                                     </span>

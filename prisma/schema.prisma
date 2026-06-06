@@ -139,6 +139,7 @@ model Huiswerk {
   les          Les?         @relation(fields: [lesId], references: [id])
   lesId        String?
   inleveringen Inlevering[]
+  hifdhTaken   HifdhTaak[]
 }
 
 model Inlevering {
@@ -213,6 +214,9 @@ model HifdhTaak {
   voltooid   Boolean      @default(false)
   voltooidOp DateTime?
   createdAt  DateTime     @default(now())
+  // Link to auto-created huiswerk entry
+  huiswerk   Huiswerk?    @relation(fields: [huiswerkId], references: [id])
+  huiswerkId String?
 }
 
 // ── Password reset tokens ─────────────────────────────────────────────────────
