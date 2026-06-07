@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
 
 interface BerichtIn {
   id: string; onderwerp: string; inhoud: string; gelezen: boolean; createdAt: string;
@@ -25,6 +26,7 @@ interface Leerling {
 }
 
 export default function OuderBerichtenPage() {
+  const { t } = useLang();
   const [inbox, setInbox] = useState<BerichtIn[]>([]);
   const [verzonden, setVerzonden] = useState<BerichtUit[]>([]);
   const [docenten, setDocenten] = useState<Docent[]>([]);
@@ -60,7 +62,10 @@ export default function OuderBerichtenPage() {
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.ontvangerId || !form.onderwerp || !form.inhoud) { toast.error("Vul alle velden in."); return; }
+    if (!form.ontvangerId || !form.onderwerp || !form.inhoud) {
+      toast.error(t("berichten_vul_in"));
+      return;
+    }
     setSending(true);
     try {
       const res = await fetch("/api/ouder/berichten", {
@@ -70,11 +75,11 @@ export default function OuderBerichtenPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success("Bericht verstuurd.");
+      toast.success(t("berichten_verstuurd"));
       setForm({ ontvangerId: "", onderwerp: "", inhoud: "" });
       setTab("inbox");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Versturen mislukt.");
+      toast.error(e instanceof Error ? e.message : t("berichten_mislukt"));
     } finally {
       setSending(false);
     }
@@ -83,21 +88,25 @@ export default function OuderBerichtenPage() {
   const ongelezen = inbox.filter((b) => !b.gelezen).length;
 
   if (isFetching) {
-    return <div className="p-6 flex items-center gap-2 text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Laden…</div>;
+    return (
+      <div className="p-6 flex items-center gap-2 text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
+      </div>
+    );
   }
 
   return (
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Berichten</h1>
-        <p className="text-gray-500 mt-1 text-sm">Berichten van en naar de school.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("berichten_titel")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("berichten_sub")}</p>
       </div>
 
       <div className="flex gap-1 mb-6 border-b border-gray-200">
         {[
-          { key: "inbox", label: `Inbox${ongelezen > 0 ? ` (${ongelezen})` : ""}`, icon: Inbox },
-          { key: "verzonden", label: "Verzonden", icon: Send },
-          { key: "nieuw", label: "Nieuw bericht", icon: MessageSquare },
+          { key: "inbox", label: ongelezen > 0 ? `${t("berichten_inbox")} (${ongelezen})` : t("berichten_inbox"), icon: Inbox },
+          { key: "verzonden", label: t("berichten_verzonden"), icon: Send },
+          { key: "nieuw", label: t("berichten_nieuw"), icon: MessageSquare },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -115,7 +124,7 @@ export default function OuderBerichtenPage() {
       {tab === "inbox" && (
         <div className="space-y-2">
           {inbox.length === 0 ? (
-            <Card><CardContent className="py-10 text-center text-gray-400 text-sm">Geen berichten in uw inbox.</CardContent></Card>
+            <Card><CardContent className="py-10 text-center text-gray-400 text-sm">{t("berichten_geen_inbox")}</CardContent></Card>
           ) : (
             inbox.map((b) => (
               <Card key={b.id} className={b.gelezen ? "opacity-70" : ""}>
@@ -148,7 +157,7 @@ export default function OuderBerichtenPage() {
       {tab === "verzonden" && (
         <div className="space-y-2">
           {verzonden.length === 0 ? (
-            <Card><CardContent className="py-10 text-center text-gray-400 text-sm">Geen verzonden berichten.</CardContent></Card>
+            <Card><CardContent className="py-10 text-center text-gray-400 text-sm">{t("berichten_geen_verzonden")}</CardContent></Card>
           ) : (
             verzonden.map((b) => (
               <Card key={b.id}>
@@ -177,30 +186,30 @@ export default function OuderBerichtenPage() {
 
       {tab === "nieuw" && (
         <Card>
-          <CardHeader><CardTitle className="text-base text-gray-900">Bericht aan docent</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base text-gray-900">{t("berichten_aan_docent")}</CardTitle></CardHeader>
           <CardContent>
             {docenten.length === 0 ? (
-              <p className="text-sm text-gray-500">Geen docenten gevonden. Uw account is mogelijk nog niet gekoppeld aan een kind.</p>
+              <p className="text-sm text-gray-500">{t("berichten_geen_docenten")}</p>
             ) : (
               <form onSubmit={handleSend} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Aan <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("berichten_aan")} <span className="text-red-500">*</span></label>
                   <select value={form.ontvangerId} onChange={(e) => setForm((p) => ({ ...p, ontvangerId: e.target.value }))} required className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500">
-                    <option value="">— Selecteer docent —</option>
+                    <option value="">{t("berichten_selecteer_docent")}</option>
                     {docenten.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Onderwerp <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("berichten_onderwerp")} <span className="text-red-500">*</span></label>
                   <Input value={form.onderwerp} onChange={(e) => setForm((p) => ({ ...p, onderwerp: e.target.value }))} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bericht <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("berichten_bericht")} <span className="text-red-500">*</span></label>
                   <Textarea value={form.inhoud} onChange={(e) => setForm((p) => ({ ...p, inhoud: e.target.value }))} rows={5} required />
                 </div>
                 <Button type="submit" disabled={sending} className="bg-green-700 hover:bg-green-800 text-white">
                   {sending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                  Versturen
+                  {t("versturen")}
                 </Button>
               </form>
             )}

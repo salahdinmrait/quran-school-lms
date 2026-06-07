@@ -5,6 +5,7 @@ import { Loader2, BookOpen, UserCheck, Star, TrendingUp, Calendar } from "lucide
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
 
 interface Aanwezigheid {
   id: string; status: string;
@@ -29,6 +30,7 @@ interface Leerling {
 }
 
 export default function OuderDashboardPage() {
+  const { t } = useLang();
   const [kinderen, setKinderen] = useState<Leerling[]>([]);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -42,7 +44,7 @@ export default function OuderDashboardPage() {
   if (isFetching) {
     return (
       <div className="p-6 flex items-center gap-2 text-gray-500">
-        <Loader2 className="h-4 w-4 animate-spin" /> Laden…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
       </div>
     );
   }
@@ -50,11 +52,11 @@ export default function OuderDashboardPage() {
   if (kinderen.length === 0) {
     return (
       <div className="p-6 max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Welkom</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">{t("ouder_welkom")}</h1>
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-gray-500">Uw account is nog niet gekoppeld aan een kind.</p>
-            <p className="text-gray-400 text-sm mt-1">Neem contact op met de school om uw account te koppelen.</p>
+            <p className="text-gray-500">{t("ouder_niet_gekoppeld")}</p>
+            <p className="text-gray-400 text-sm mt-1">{t("ouder_niet_gekoppeld_sub")}</p>
           </CardContent>
         </Card>
       </div>
@@ -64,12 +66,12 @@ export default function OuderDashboardPage() {
   return (
     <div className="p-6 max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1 text-sm">Overzicht van uw kind{kinderen.length > 1 ? "eren" : ""}.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("nav_dashboard")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("ouder_dashboard_sub")}.</p>
       </div>
 
       {kinderen.map((kind) => {
-        const klassen = kind.leerlingKlassen.map((kl) => kl.klas.naam).join(", ");
+        const klassen = kind.leerlingKlassen.map((kl) => kl.klas.naam).join(", ") || t("ouder_geen_klas");
         const aanwezig = kind.aanwezigheid.filter((a) => a.status === "AANWEZIG").length;
         const totaal = kind.aanwezigheid.length;
         const afwezig = kind.aanwezigheid.filter((a) => a.status === "AFWEZIG").length;
@@ -87,7 +89,7 @@ export default function OuderDashboardPage() {
               </div>
               <div>
                 <p className="font-semibold text-gray-900 text-lg">{kind.name}</p>
-                <p className="text-xs text-gray-500">{klassen || "Geen klas"}</p>
+                <p className="text-xs text-gray-500">{klassen}</p>
               </div>
             </div>
 
@@ -96,8 +98,8 @@ export default function OuderDashboardPage() {
                 <CardContent className="p-4 text-center">
                   <UserCheck className="h-6 w-6 text-green-600 mx-auto mb-1" />
                   <p className="text-xl font-bold text-green-700">{aanwezig}/{totaal}</p>
-                  <p className="text-xs text-gray-500">Aanwezig</p>
-                  {afwezig > 0 && <p className="text-xs text-red-500 mt-0.5">{afwezig} afwezig</p>}
+                  <p className="text-xs text-gray-500">{t("dashboard_aanwezigheid")}</p>
+                  {afwezig > 0 && <p className="text-xs text-red-500 mt-0.5">{afwezig} {t("status_afwezig")}</p>}
                 </CardContent>
               </Card>
 
@@ -105,7 +107,7 @@ export default function OuderDashboardPage() {
                 <CardContent className="p-4 text-center">
                   <Star className="h-6 w-6 text-blue-600 mx-auto mb-1" />
                   <p className="text-xl font-bold text-blue-700">{gemiddeld}</p>
-                  <p className="text-xs text-gray-500">Gemiddeld cijfer</p>
+                  <p className="text-xs text-gray-500">{t("ouder_gemiddeld_cijfer")}</p>
                 </CardContent>
               </Card>
 
@@ -113,7 +115,7 @@ export default function OuderDashboardPage() {
                 <CardContent className="p-4 text-center">
                   <BookOpen className="h-6 w-6 text-amber-600 mx-auto mb-1" />
                   <p className="text-xl font-bold text-amber-700">{hifdhVoltooide}/{hifdhTaken.length}</p>
-                  <p className="text-xs text-gray-500">Hifdh taken</p>
+                  <p className="text-xs text-gray-500">{t("ouder_hifdh_taken")}</p>
                 </CardContent>
               </Card>
 
@@ -121,7 +123,7 @@ export default function OuderDashboardPage() {
                 <CardContent className="p-4 text-center">
                   <TrendingUp className="h-6 w-6 text-purple-600 mx-auto mb-1" />
                   <p className="text-xl font-bold text-purple-700">{kind.cijfers.length}</p>
-                  <p className="text-xs text-gray-500">Cijfers</p>
+                  <p className="text-xs text-gray-500">{t("nav_cijfers")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -130,7 +132,7 @@ export default function OuderDashboardPage() {
             {kind.aanwezigheid.filter((a) => a.status !== "AANWEZIG").length > 0 && (
               <Card className="border-red-100">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-gray-700">Recente absentie</CardTitle>
+                  <CardTitle className="text-sm text-gray-700">{t("ouder_recente_absentie")}</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <ul className="space-y-1">
@@ -145,7 +147,7 @@ export default function OuderDashboardPage() {
                             a.status === "AFWEZIG" ? "bg-red-100 text-red-700" :
                             a.status === "TE_LAAT" ? "bg-amber-100 text-amber-700" :
                             "bg-blue-100 text-blue-700"
-                          }`}>{a.status.replace("_", " ")}</span>
+                          }`}>{t(a.status === "AFWEZIG" ? "status_afwezig" : a.status === "TE_LAAT" ? "status_te_laat" : "status_geoorloofd")}</span>
                         </li>
                       ))}
                   </ul>
@@ -156,16 +158,16 @@ export default function OuderDashboardPage() {
             {/* Quick links */}
             <div className="flex flex-wrap gap-2">
               <Link href="/ouder/voortgang" className="text-xs text-green-700 hover:underline px-3 py-1.5 bg-green-50 rounded-full border border-green-200">
-                → Volledige voortgang
+                → {t("ouder_voortgang")}
               </Link>
               <Link href="/ouder/hifdh" className="text-xs text-blue-700 hover:underline px-3 py-1.5 bg-blue-50 rounded-full border border-blue-200">
-                → Hifdh tracker
+                → {t("nav_hifdh")}
               </Link>
               <Link href="/ouder/rooster" className="text-xs text-purple-700 hover:underline px-3 py-1.5 bg-purple-50 rounded-full border border-purple-200">
-                → Aankomende lessen
+                → {t("ouder_aankomende_lessen")}
               </Link>
               <Link href="/ouder/berichten" className="text-xs text-gray-700 hover:underline px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200">
-                → Berichten
+                → {t("nav_berichten")}
               </Link>
             </div>
           </div>

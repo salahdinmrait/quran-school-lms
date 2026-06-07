@@ -115,12 +115,6 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="flex justify-end">
-                <Link href="/login/wachtwoord-vergeten" className="text-xs text-green-700 hover:underline">
-                  Wachtwoord vergeten?
-                </Link>
-              </div>
-
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>

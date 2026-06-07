@@ -1,66 +1,50 @@
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Star, UserCheck, BookOpen, Calendar } from "lucide-react";
+import { Star, UserCheck, BookOpen, MessageSquare, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
 
-export default async function LeerlingDashboard() {
-  const session = await auth();
-  const leerlingId = session!.user.id;
+type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
-  const [klassen, recenteCijfers, openHuiswerk, ongelezen] = await Promise.all([
-    prisma.klasLeerling.findMany({
-      where: { leerlingId },
-      include: {
-        klas: {
-          include: {
-            vakken: { include: { vak: true }, take: 4 },
-          },
-        },
-      },
-    }),
-    prisma.cijfer.findMany({
-      where: { leerlingId },
-      orderBy: { datum: "desc" },
-      take: 5,
-      include: { vak: true },
-    }),
-    prisma.huiswerk.findMany({
-      where: {
-        vak: {
-          klassen: {
-            some: {
-              klas: { leerlingen: { some: { leerlingId } } },
-            },
-          },
-        },
-        inleveringen: { none: { leerlingId } },
-      },
-      take: 5,
-      include: { vak: true },
-    }),
-    prisma.bericht.count({
-      where: { ontvangerId: leerlingId, gelezen: false },
-    }),
-  ]);
+interface DashboardData {
+  name: string;
+  recenteCijfers: { id: string; waarde: number; datum: string; omschrijving: string | null; vak: { naam: string; categorie: VakCategorie } }[];
+  openHuiswerk: { id: string; titel: string; deadline: string | null; vak: { naam: string; categorie: VakCategorie } }[];
+  klassen: { klas: { id: string; naam: string; vakken: { id: string; vak: { categorie: VakCategorie } }[] } }[];
+  aanwezigPct: number | null;
+  totaalLessen: number;
+  ongelezen: number;
+}
 
-  const aanwezigheidStats = await prisma.aanwezigheid.groupBy({
-    by: ["status"],
-    where: { leerlingId },
-    _count: { id: true },
-  });
+export default function LeerlingDashboard() {
+  const { t } = useLang();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isFetching, setIsFetching] = useState(true);
 
-  const totaalLessen = aanwezigheidStats.reduce((sum, s) => sum + s._count.id, 0);
-  const aanwezig = aanwezigheidStats.find((s) => s.status === "AANWEZIG")?._count.id ?? 0;
-  const aanwezigPct = totaalLessen > 0 ? Math.round((aanwezig / totaalLessen) * 100) : null;
+  useEffect(() => {
+    fetch("/api/leerling/dashboard")
+      .then((r) => r.json())
+      .then((d) => { setData(d); setIsFetching(false); })
+      .catch(() => setIsFetching(false));
+  }, []);
+
+  if (isFetching || !data) {
+    return (
+      <div className="p-6 flex items-center gap-2 text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welkom, {session?.user?.name}. Hier is uw overzicht.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("nav_dashboard")}</h1>
+        <p className="text-gray-500 mt-1">{t("dashboard_welkom")}, {data.name}. {t("dashboard_overzicht")}</p>
       </div>
 
       {/* Quick stats */}
@@ -68,12 +52,14 @@ export default async function LeerlingDashboard() {
         <Link href="/leerling/cijfers">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs text-gray-500">Vakken</CardTitle>
+              <CardTitle className="text-xs text-gray-500">{t("dashboard_vakken")}</CardTitle>
               <Star className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{recenteCijfers.length > 0 ? recenteCijfers[0].waarde.toFixed(1) : "—"}</div>
-              <p className="text-xs text-gray-400">Laatste cijfer</p>
+              <div className="text-2xl font-bold">
+                {data.recenteCijfers.length > 0 ? data.recenteCijfers[0].waarde.toFixed(1) : "—"}
+              </div>
+              <p className="text-xs text-gray-400">{t("dashboard_laatste_cijfer")}</p>
             </CardContent>
           </Card>
         </Link>
@@ -81,12 +67,14 @@ export default async function LeerlingDashboard() {
         <Link href="/leerling/absentie">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs text-gray-500">Aanwezigheid</CardTitle>
+              <CardTitle className="text-xs text-gray-500">{t("dashboard_aanwezigheid")}</CardTitle>
               <UserCheck className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{aanwezigPct !== null ? `${aanwezigPct}%` : "—"}</div>
-              <p className="text-xs text-gray-400">{totaalLessen} lessen geregistreerd</p>
+              <div className="text-2xl font-bold">
+                {data.aanwezigPct !== null ? `${data.aanwezigPct}%` : "—"}
+              </div>
+              <p className="text-xs text-gray-400">{data.totaalLessen} {t("dashboard_lessen_geregistreerd")}</p>
             </CardContent>
           </Card>
         </Link>
@@ -94,12 +82,12 @@ export default async function LeerlingDashboard() {
         <Link href="/leerling/huiswerk">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs text-gray-500">Huiswerk</CardTitle>
+              <CardTitle className="text-xs text-gray-500">{t("nav_huiswerk")}</CardTitle>
               <BookOpen className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{openHuiswerk.length}</div>
-              <p className="text-xs text-gray-400">Openstaand</p>
+              <div className="text-2xl font-bold">{data.openHuiswerk.length}</div>
+              <p className="text-xs text-gray-400">{t("openstaand")}</p>
             </CardContent>
           </Card>
         </Link>
@@ -107,12 +95,12 @@ export default async function LeerlingDashboard() {
         <Link href="/leerling/berichten">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs text-gray-500">Berichten</CardTitle>
-              <Calendar className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-xs text-gray-500">{t("nav_berichten")}</CardTitle>
+              <MessageSquare className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{ongelezen}</div>
-              <p className="text-xs text-gray-400">Ongelezen</p>
+              <div className="text-2xl font-bold">{data.ongelezen}</div>
+              <p className="text-xs text-gray-400">{t("dashboard_ongelezen")}</p>
             </CardContent>
           </Card>
         </Link>
@@ -122,14 +110,14 @@ export default async function LeerlingDashboard() {
         {/* Recente cijfers */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Recente beoordelingen</CardTitle>
+            <CardTitle className="text-base">{t("dashboard_recente_beoordelingen")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {recenteCijfers.length === 0 ? (
-              <p className="text-sm text-gray-400">Nog geen cijfers ingevoerd.</p>
+            {data.recenteCijfers.length === 0 ? (
+              <p className="text-sm text-gray-400">{t("dashboard_geen_cijfers")}</p>
             ) : (
               <ul className="space-y-3">
-                {recenteCijfers.map((cijfer) => (
+                {data.recenteCijfers.map((cijfer) => (
                   <li key={cijfer.id} className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{cijfer.vak.naam}</p>
@@ -151,21 +139,18 @@ export default async function LeerlingDashboard() {
         {/* Open huiswerk */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Openstaand huiswerk</CardTitle>
+            <CardTitle className="text-base">{t("dashboard_huiswerk_openstaand")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {openHuiswerk.length === 0 ? (
-              <p className="text-sm text-gray-400">Geen openstaand huiswerk. Goed bezig!</p>
+            {data.openHuiswerk.length === 0 ? (
+              <p className="text-sm text-gray-400">{t("dashboard_geen_huiswerk")}</p>
             ) : (
               <ul className="space-y-3">
-                {openHuiswerk.map((hw) => (
+                {data.openHuiswerk.map((hw) => (
                   <li key={hw.id} className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 truncate">{hw.titel}</p>
-                      <VakBadge
-                        categorie={hw.vak.categorie as "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG"}
-                        className="mt-1"
-                      />
+                      <VakBadge categorie={hw.vak.categorie} className="mt-1" />
                     </div>
                     {hw.deadline && (
                       <p className="text-xs text-red-500 whitespace-nowrap">{formatDate(hw.deadline)}</p>
@@ -180,22 +165,19 @@ export default async function LeerlingDashboard() {
         {/* Mijn klassen */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Mijn klassen</CardTitle>
+            <CardTitle className="text-base">{t("dashboard_mijn_klassen")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {klassen.length === 0 ? (
-              <p className="text-sm text-gray-400">Nog niet aan een klas gekoppeld.</p>
+            {data.klassen.length === 0 ? (
+              <p className="text-sm text-gray-400">{t("dashboard_geen_klas")}</p>
             ) : (
               <ul className="space-y-3">
-                {klassen.map(({ klas }) => (
+                {data.klassen.map(({ klas }) => (
                   <li key={klas.id}>
                     <p className="text-sm font-medium text-gray-800">{klas.naam}</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {klas.vakken.map((kv) => (
-                        <VakBadge
-                          key={kv.id}
-                          categorie={kv.vak.categorie as "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG"}
-                        />
+                        <VakBadge key={kv.id} categorie={kv.vak.categorie} />
                       ))}
                     </div>
                   </li>

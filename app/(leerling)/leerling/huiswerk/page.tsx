@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
 import { Loader2, CheckCircle, Clock, Trophy, MessageSquare } from "lucide-react";
+import { useLang } from "@/contexts/LanguageContext";
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
@@ -43,6 +44,7 @@ interface KlasRanking {
 const MEDAL = ["🥇", "🥈", "🥉"];
 
 export default function HuiswerkPage() {
+  const { t } = useLang();
   const [huiswerk, setHuiswerk] = useState<HuiswerkItem[]>([]);
   const [rankings, setRankings] = useState<KlasRanking[]>([]);
   const [isFetching, setIsFetching] = useState(true);
@@ -61,7 +63,7 @@ export default function HuiswerkPage() {
   if (isFetching) {
     return (
       <div className="p-6 flex items-center gap-2 text-gray-500">
-        <Loader2 className="h-4 w-4 animate-spin" /> Laden...
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
       </div>
     );
   }
@@ -72,11 +74,9 @@ export default function HuiswerkPage() {
   return (
     <div className="p-6 max-w-4xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Huiswerk</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("huiswerk_titel")}</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          {open.length} openstaand{open.length !== 1 ? "e" : ""} opdracht{open.length !== 1 ? "en" : ""}
-          {" · "}
-          {ingeleverd.length} afgevinkt
+          {open.length} {t("openstaand")} · {ingeleverd.length} {t("afgevinkt")}
         </p>
       </div>
 
@@ -86,14 +86,14 @@ export default function HuiswerkPage() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base text-gray-900">
               <Trophy className="h-4 w-4 text-amber-500" />
-              Klassement — {r.klasNaam}
+              {t("huiswerk_klassement")} — {r.klasNaam}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {r.totaalHw === 0 ? (
               <p className="text-sm text-gray-400 italic">Nog geen huiswerk aangemaakt voor deze klas.</p>
             ) : r.top3.length === 0 ? (
-              <p className="text-sm text-gray-400 italic">Nog geen inleveringen.</p>
+              <p className="text-sm text-gray-400 italic">{t("huiswerk_geen_inleveringen")}</p>
             ) : (
               <div className="space-y-2">
                 {r.top3.map((item) => (
@@ -130,7 +130,7 @@ export default function HuiswerkPage() {
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <Clock className="h-4 w-4 text-amber-500" />
-            Openstaand ({open.length})
+            {t("openstaand")} ({open.length})
           </h2>
           <div className="space-y-3">
             {open.map((hw) => (
@@ -151,7 +151,7 @@ export default function HuiswerkPage() {
                     <p className="text-sm text-gray-500 mt-2">{hw.beschrijving}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-3 italic">
-                    Wordt afgevinkt door de docent.
+                    {t("huiswerk_docent_afvinkt")}
                   </p>
                 </CardContent>
               </Card>
@@ -165,7 +165,7 @@ export default function HuiswerkPage() {
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-600" />
-            Afgevinkt ({ingeleverd.length})
+            {t("afgevinkt")} ({ingeleverd.length})
           </h2>
           <div className="space-y-3">
             {ingeleverd.map((hw) => (
@@ -181,7 +181,7 @@ export default function HuiswerkPage() {
                     <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 space-y-1">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700">
                         <MessageSquare className="h-3.5 w-3.5" />
-                        Opmerking van docent
+                        {t("huiswerk_opmerking_docent")}
                         {hw.inlevering.opmerkingOp && (
                           <span className="font-normal text-blue-500">
                             · {formatDate(hw.inlevering.opmerkingOp)}
@@ -201,7 +201,7 @@ export default function HuiswerkPage() {
       {huiswerk.length === 0 && (
         <Card>
           <CardContent className="py-8 text-center text-gray-400 text-sm">
-            Geen huiswerkopgaven gevonden.
+            {t("huiswerk_geen")}
           </CardContent>
         </Card>
       )}

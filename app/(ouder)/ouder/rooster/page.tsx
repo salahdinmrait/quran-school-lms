@@ -1,67 +1,64 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Clock, Calendar, BookOpen } from "lucide-react";
+import { Loader2, Clock, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
-
-interface HuiswerkItem {
-  id: string; titel: string;
-  inleveringen: { leerlingId: string }[];
-}
+import { useLang } from "@/contexts/LanguageContext";
 
 interface Les {
   id: string; datum: string; begintijd: string; eindtijd: string;
   lokaal: string | null;
   klas: { naam: string };
   vak: { naam: string } | null;
-  huiswerk: HuiswerkItem[];
+  aanwezigheid: { status: string }[];
 }
 
-interface Klas {
+interface KindLessen {
+  kind: { id: string; name: string };
   lessen: Les[];
 }
 
-interface Leerling {
-  id: string; name: string;
-  leerlingKlassen: { klas: Klas }[];
-}
+const statusKleur: Record<string, string> = {
+  AANWEZIG:    "bg-green-100 text-green-700",
+  AFWEZIG:     "bg-red-100 text-red-700",
+  TE_LAAT:     "bg-amber-100 text-amber-700",
+  GEOORLOOFD:  "bg-blue-100 text-blue-700",
+};
 
 export default function OuderRoosterPage() {
-  const [kinderen, setKinderen] = useState<Leerling[]>([]);
+  const { t } = useLang();
+  const [data, setData] = useState<KindLessen[]>([]);
   const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
-    fetch("/api/ouder/kind")
+    fetch("/api/ouder/lessen")
       .then((r) => r.json())
-      .then((data) => { setKinderen(Array.isArray(data) ? data : []); setIsFetching(false); })
+      .then((d) => { setData(Array.isArray(d) ? d : []); setIsFetching(false); })
       .catch(() => setIsFetching(false));
   }, []);
 
   if (isFetching) {
-    return <div className="p-6 flex items-center gap-2 text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Laden…</div>;
+    return (
+      <div className="p-6 flex items-center gap-2 text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
+      </div>
+    );
   }
 
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
   return (
     <div className="p-6 max-w-4xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Aankomende lessen</h1>
-        <p className="text-gray-500 mt-1 text-sm">Komende lessen van uw kind.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("rooster_aankomend")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("rooster_aankomend_sub")}</p>
       </div>
 
-      {kinderen.map((kind) => {
-        const alleLessen: Les[] = [];
-        for (const { klas } of kind.leerlingKlassen) {
-          for (const les of klas.lessen) {
-            alleLessen.push(les);
-          }
-        }
-
-        // Filter upcoming (today onwards) and sort
-        const upcoming = alleLessen
-          .filter((l) => new Date(l.datum) >= new Date(now.toDateString()))
+      {data.map(({ kind, lessen }) => {
+        const upcoming = lessen
+          .filter((l) => new Date(l.datum) >= now)
           .sort((a, b) => a.datum.localeCompare(b.datum) || a.begintijd.localeCompare(b.begintijd))
           .slice(0, 20);
 
@@ -81,21 +78,19 @@ export default function OuderRoosterPage() {
               <Card>
                 <CardContent className="py-8 text-center text-gray-400 text-sm">
                   <Calendar className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  Geen aankomende lessen gevonden.
+                  {t("rooster_geen_aankomend")}
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {Object.entries(grouped).map(([date, lessen]) => (
+                {Object.entries(grouped).map(([date, dagLessen]) => (
                   <div key={date}>
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                       {formatDate(date)}
                     </h3>
                     <div className="space-y-2">
-                      {lessen.map((les) => {
-                        const openHw = les.huiswerk.filter(
-                          (hw) => !hw.inleveringen.some((inv) => inv.leerlingId === kind.id)
-                        ).length;
+                      {dagLessen.map((les) => {
+                        const aanw = les.aanwezigheid[0];
                         return (
                           <Card key={les.id}>
                             <CardContent className="py-3 px-4">
@@ -109,13 +104,12 @@ export default function OuderRoosterPage() {
                                   </p>
                                   <p className="text-xs text-gray-500">
                                     {les.begintijd} – {les.eindtijd}
-                                    {les.lokaal && ` · Lokaal ${les.lokaal}`}
+                                    {les.lokaal && ` · ${t("rooster_lokaal")} ${les.lokaal}`}
                                   </p>
                                 </div>
-                                {openHw > 0 && (
-                                  <span className="flex items-center gap-1 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 shrink-0">
-                                    <BookOpen className="h-3 w-3" />
-                                    {openHw} hw open
+                                {aanw && (
+                                  <span className={`text-xs rounded-full px-2 py-0.5 font-medium shrink-0 ${statusKleur[aanw.status] ?? ""}`}>
+                                    {t(`status_${aanw.status.toLowerCase()}` as Parameters<typeof t>[0]) ?? aanw.status}
                                   </span>
                                 )}
                               </div>

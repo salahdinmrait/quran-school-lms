@@ -5,6 +5,7 @@ import { Loader2, BookOpen, CheckCircle, Circle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSurah } from "@/lib/quran";
 import { formatDate } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
 
 interface HifdhTaak {
   id: string; type: string; surahNr: number; vanAyah: number;
@@ -24,6 +25,7 @@ interface Leerling {
 }
 
 export default function OuderHifdhPage() {
+  const { t } = useLang();
   const [kinderen, setKinderen] = useState<Leerling[]>([]);
   const [isFetching, setIsFetching] = useState(true);
 
@@ -35,14 +37,18 @@ export default function OuderHifdhPage() {
   }, []);
 
   if (isFetching) {
-    return <div className="p-6 flex items-center gap-2 text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Laden…</div>;
+    return (
+      <div className="p-6 flex items-center gap-2 text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
+      </div>
+    );
   }
 
   return (
     <div className="p-6 max-w-4xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Hifdh Voortgang</h1>
-        <p className="text-gray-500 mt-1 text-sm">Quran-memorisatie voortgang van uw kind.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("hifdh_kind")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("hifdh_kind_sub")}</p>
       </div>
 
       {kinderen.map((kind) => {
@@ -53,7 +59,7 @@ export default function OuderHifdhPage() {
               <h2 className="text-lg font-semibold text-gray-900 mb-2">{kind.name}</h2>
               <Card>
                 <CardContent className="py-6 text-center text-gray-400 text-sm">
-                  Nog geen hifdh-profiel aangemaakt voor {kind.name}.
+                  {t("hifdh_geen_profiel")} — {kind.name}
                 </CardContent>
               </Card>
             </div>
@@ -62,15 +68,15 @@ export default function OuderHifdhPage() {
 
         const startSurah = getSurah(p.startSurahNr);
         const huidigeSurah = getSurah(p.huidigeSurahNr);
-        const voltooide = p.taken.filter((t) => t.voltooid).length;
+        const voltooide = p.taken.filter((tk) => tk.voltooid).length;
         const totaal = p.taken.length;
 
         // Group taken by week
         const weekGroups: Record<string, HifdhTaak[]> = {};
-        for (const t of p.taken) {
-          const k = t.weekStart.slice(0, 10);
+        for (const tk of p.taken) {
+          const k = tk.weekStart.slice(0, 10);
           if (!weekGroups[k]) weekGroups[k] = [];
-          weekGroups[k].push(t);
+          weekGroups[k].push(tk);
         }
 
         return (
@@ -81,24 +87,24 @@ export default function OuderHifdhPage() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-green-700" />
-                  Huidige positie
+                  {t("hifdh_huidige_positie")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Start:</span>
-                  <span className="font-medium">{startSurah?.naamAr} ({startSurah?.naam}), ayah {p.startAyahNr}</span>
+                  <span className="text-gray-500">{t("hifdh_start")}:</span>
+                  <span className="font-medium">{startSurah?.naamAr} ({startSurah?.naam}), {t("hifdh_ayah")} {p.startAyahNr}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Huidig:</span>
-                  <span className="font-medium text-green-700">{huidigeSurah?.naamAr} ({huidigeSurah?.naam}), ayah {p.huidigeAyahNr}</span>
+                  <span className="text-gray-500">{t("hifdh_huidig")}:</span>
+                  <span className="font-medium text-green-700">{huidigeSurah?.naamAr} ({huidigeSurah?.naam}), {t("hifdh_ayah")} {p.huidigeAyahNr}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Doel:</span>
-                  <span>{p.ayaatPerWeek} ayaat per week</span>
+                  <span className="text-gray-500">{t("hifdh_doel")}:</span>
+                  <span>{p.ayaatPerWeek} {t("hifdh_ayaat_week")}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Taken voltooid:</span>
+                  <span className="text-gray-500">{t("hifdh_taken_voltooid")}:</span>
                   <span className="font-medium">{voltooide} / {totaal}</span>
                 </div>
                 {p.opmerkingen && (
@@ -110,13 +116,13 @@ export default function OuderHifdhPage() {
             {/* Tasks per week (read-only) */}
             <div className="space-y-2">
               {Object.entries(weekGroups).sort(([a], [b]) => a.localeCompare(b)).map(([weekKey, taken]) => {
-                const allDone = taken.every((t) => t.voltooid);
-                const doneCount = taken.filter((t) => t.voltooid).length;
+                const allDone = taken.every((tk) => tk.voltooid);
+                const doneCount = taken.filter((tk) => tk.voltooid).length;
                 return (
                   <Card key={weekKey} className={allDone ? "opacity-80" : ""}>
                     <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-gray-700">Week van {formatDate(weekKey)}</p>
+                        <p className="text-sm font-medium text-gray-700">{t("hifdh_week_van")} {formatDate(weekKey)}</p>
                         <span className={`text-xs font-medium ${allDone ? "text-green-600" : "text-amber-600"}`}>
                           {doneCount}/{taken.length}
                         </span>
@@ -131,7 +137,7 @@ export default function OuderHifdhPage() {
                                 : <Circle className="h-4 w-4 text-gray-300 shrink-0" />
                               }
                               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
-                                {taak.type === "NIEUW" ? "Nieuw" : "Herhaling"}
+                                {taak.type === "NIEUW" ? t("hifdh_nieuw_label") : t("hifdh_herhaling_label")}
                               </span>
                               <span className="flex-1 text-gray-800">
                                 {surah?.naamAr} ({surah?.naam}) v{taak.vanAyah}–{taak.totAyah}

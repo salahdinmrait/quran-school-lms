@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
+import { useLang } from "@/contexts/LanguageContext";
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
@@ -37,6 +38,7 @@ interface Les {
 }
 
 export default function RoosterPage() {
+  const { t } = useLang();
   const [lessen, setLessen] = useState<Les[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [expandedLesId, setExpandedLesId] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function RoosterPage() {
 
   async function inleveren(huiswerkId: string) {
     const inhoud = drafts[huiswerkId];
-    if (!inhoud?.trim()) { toast.error("Voer eerst een antwoord in."); return; }
+    if (!inhoud?.trim()) { toast.error(t("rooster_antwoord_required")); return; }
     setSaving((p) => ({ ...p, [huiswerkId]: true }));
     try {
       const res = await fetch("/api/leerling/huiswerk", {
@@ -65,7 +67,7 @@ export default function RoosterPage() {
         body: JSON.stringify({ huiswerkId, inhoud }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Huiswerk ingeleverd!");
+      toast.success(t("rooster_ingeleverd_succes"));
       // Update local state
       setLessen((prev) =>
         prev.map((les) => ({
@@ -84,7 +86,7 @@ export default function RoosterPage() {
       );
       setDrafts((p) => ({ ...p, [huiswerkId]: "" }));
     } catch {
-      toast.error("Inleveren mislukt. Probeer opnieuw.");
+      toast.error(t("rooster_inleveren_fout"));
     } finally {
       setSaving((p) => ({ ...p, [huiswerkId]: false }));
     }
@@ -102,7 +104,7 @@ export default function RoosterPage() {
     return (
       <div className="p-6 flex items-center gap-2 text-gray-500">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Laden…
+        {t("laden")}
       </div>
     );
   }
@@ -110,15 +112,15 @@ export default function RoosterPage() {
   return (
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Rooster</h1>
-        <p className="text-gray-500 mt-1 text-sm">Klik op een les om huiswerk te bekijken en in te leveren.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("rooster_titel")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("rooster_subtitel")}</p>
       </div>
 
       {lessen.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-gray-400 text-sm">
             <Calendar className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            Geen lessen gepland.
+            {t("rooster_geen_lessen")}
           </CardContent>
         </Card>
       ) : (
@@ -149,7 +151,7 @@ export default function RoosterPage() {
                             <p className="text-sm font-medium text-gray-900">{les.klas.naam}</p>
                             <p className="text-xs text-gray-500">
                               {les.begintijd} – {les.eindtijd}
-                              {les.lokaal && ` · Lokaal ${les.lokaal}`}
+                              {les.lokaal && ` · ${t("rooster_lokaal")} ${les.lokaal}`}
                             </p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
@@ -160,8 +162,8 @@ export default function RoosterPage() {
                                   : "bg-green-100 text-green-700"
                               }`}>
                                 {openCount > 0
-                                  ? `${openCount} openstaand`
-                                  : `${hwCount} ✓ alles ingeleverd`}
+                                  ? `${openCount} ${t("rooster_openstaand")}`
+                                  : `${hwCount} ✓ ${t("rooster_alles_ingeleverd")}`}
                               </span>
                             )}
                             {isExpanded
@@ -176,7 +178,7 @@ export default function RoosterPage() {
                           <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
                             {les.huiswerk.length === 0 ? (
                               <p className="text-sm text-gray-400 italic">
-                                Geen huiswerk voor deze les.
+                                {t("rooster_geen_huiswerk")}
                               </p>
                             ) : (
                               les.huiswerk.map((hw) => {
@@ -197,7 +199,7 @@ export default function RoosterPage() {
                                         )}
                                         {hw.deadline && (
                                           <p className="text-xs text-red-500 mt-1">
-                                            Deadline: {formatDate(hw.deadline)}
+                                            {t("deadline")}: {formatDate(hw.deadline)}
                                           </p>
                                         )}
                                       </div>
@@ -207,7 +209,7 @@ export default function RoosterPage() {
                                       <div className="flex items-start gap-2 bg-white rounded border border-green-200 px-3 py-2">
                                         <CheckCircle className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
                                         <div>
-                                          <p className="text-xs font-medium text-green-700">Ingeleverd</p>
+                                          <p className="text-xs font-medium text-green-700">{t("rooster_ingeleverd")}</p>
                                           {inlevering?.inhoud && (
                                             <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{inlevering.inhoud}</p>
                                           )}
@@ -216,7 +218,7 @@ export default function RoosterPage() {
                                     ) : (
                                       <div className="space-y-2">
                                         <Textarea
-                                          placeholder="Schrijf hier uw antwoord…"
+                                          placeholder={t("rooster_antwoord_placeholder")}
                                           value={drafts[hw.id] ?? ""}
                                           onChange={(e) => setDrafts((p) => ({ ...p, [hw.id]: e.target.value }))}
                                           rows={3}
@@ -232,7 +234,7 @@ export default function RoosterPage() {
                                             ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                                             : <Send className="h-3.5 w-3.5 mr-1" />
                                           }
-                                          Inleveren
+                                          {t("inleveren")}
                                         </Button>
                                       </div>
                                     )}

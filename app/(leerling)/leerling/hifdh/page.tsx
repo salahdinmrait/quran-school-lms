@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, CheckCircle, Circle, Loader2, ChevronDown, ChevronUp, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SURAHS, getSurah } from "@/lib/quran";
+import { useLang } from "@/contexts/LanguageContext";
 
 interface HifdhTaak {
   id: string;
@@ -44,6 +45,7 @@ function getMondayOfDate(d: Date): Date {
 }
 
 export default function LeerlingHifdhPage() {
+  const { t } = useLang();
   const [profiel, setProfiel] = useState<HifdhProfiel | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
@@ -74,10 +76,8 @@ export default function LeerlingHifdhPage() {
 
   function getSurahStatus(surahNr: number): "voltooid" | "bezig" | "open" {
     if (!profiel) return "open";
-    const startNr = profiel.startSurahNr;
-    const huidigNr = profiel.huidigeSurahNr;
-    if (startNr >= surahNr && surahNr > huidigNr) return "voltooid";
-    if (surahNr === huidigNr) return "bezig";
+    if (profiel.startSurahNr >= surahNr && surahNr > profiel.huidigeSurahNr) return "voltooid";
+    if (surahNr === profiel.huidigeSurahNr) return "bezig";
     return "open";
   }
 
@@ -89,7 +89,7 @@ export default function LeerlingHifdhPage() {
   if (isFetching) {
     return (
       <div className="p-6 flex items-center gap-2 text-gray-500">
-        <Loader2 className="h-4 w-4 animate-spin" /> Laden…
+        <Loader2 className="h-4 w-4 animate-spin" /> {t("laden")}
       </div>
     );
   }
@@ -98,16 +98,14 @@ export default function LeerlingHifdhPage() {
     return (
       <div className="p-6 max-w-2xl">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Hifdh Tracker</h1>
-          <p className="text-gray-500 mt-1 text-sm">Uw voortgang in het memoriseren van de Quran.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t("hifdh_titel")}</h1>
+          <p className="text-gray-500 mt-1 text-sm">{t("hifdh_subtitel")}</p>
         </div>
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500 font-medium">Nog geen hifdh-profiel aangemaakt</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Uw docent moet eerst een hifdh-profiel voor u aanmaken.
-            </p>
+            <p className="text-gray-500 font-medium">{t("hifdh_geen_profiel")}</p>
+            <p className="text-gray-400 text-sm mt-1">{t("hifdh_geen_profiel_sub")}</p>
           </CardContent>
         </Card>
       </div>
@@ -120,27 +118,27 @@ export default function LeerlingHifdhPage() {
   return (
     <div className="p-6 max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Hifdh Tracker</h1>
-        <p className="text-gray-500 mt-1 text-sm">Uw Quran memorisatie voortgang.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t("hifdh_titel")}</h1>
+        <p className="text-gray-500 mt-1 text-sm">{t("hifdh_subtitel")}</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-green-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-green-700">{voltooide}</p>
-          <p className="text-xs text-green-600 mt-0.5">Taken voltooid</p>
+          <p className="text-xs text-green-600 mt-0.5">{t("hifdh_taken_voltooid")}</p>
         </div>
         <div className="bg-amber-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-amber-700">{totalTaken - voltooide}</p>
-          <p className="text-xs text-amber-600 mt-0.5">Openstaand</p>
+          <p className="text-xs text-amber-600 mt-0.5">{t("hifdh_openstaand")}</p>
         </div>
         <div className="bg-blue-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-blue-700">{niuweTaken.length}</p>
-          <p className="text-xs text-blue-600 mt-0.5">Nieuw geleerd</p>
+          <p className="text-xs text-blue-600 mt-0.5">{t("hifdh_nieuw")}</p>
         </div>
         <div className="bg-purple-50 rounded-lg p-3 text-center">
           <p className="text-2xl font-bold text-purple-700">{herhalingTaken.length}</p>
-          <p className="text-xs text-purple-600 mt-0.5">Herhaling</p>
+          <p className="text-xs text-purple-600 mt-0.5">{t("hifdh_herhaling")}</p>
         </div>
       </div>
 
@@ -148,12 +146,12 @@ export default function LeerlingHifdhPage() {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-gray-900">Huidige positie</CardTitle>
+            <CardTitle className="text-base text-gray-900">{t("hifdh_huidige_positie")}</CardTitle>
             <button
               onClick={() => setShowProgress((v) => !v)}
               className="text-xs text-green-700 hover:underline flex items-center gap-1"
             >
-              {showProgress ? "Verberg" : "Toon alle surahs"}
+              {showProgress ? t("hifdh_verberg") : t("hifdh_toon_surahs")}
               {showProgress ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
           </div>
@@ -161,24 +159,24 @@ export default function LeerlingHifdhPage() {
         <CardContent className="space-y-3">
           <div className="flex items-center gap-4 text-sm">
             <div>
-              <p className="text-xs text-gray-500">Start</p>
+              <p className="text-xs text-gray-500">{t("hifdh_start")}</p>
               <p className="font-medium text-gray-800">{startSurah?.naamAr} ({startSurah?.naam})</p>
             </div>
             <div className="flex-1 border-t-2 border-dashed border-gray-200" />
             <div className="text-right">
-              <p className="text-xs text-gray-500">Huidig</p>
+              <p className="text-xs text-gray-500">{t("hifdh_huidig")}</p>
               <p className="font-medium text-green-700">{huidigeSurah?.naamAr} ({huidigeSurah?.naam})</p>
-              <p className="text-xs text-gray-500">Ayah {profiel.huidigeAyahNr}</p>
+              <p className="text-xs text-gray-500">{t("hifdh_ayah")} {profiel.huidigeAyahNr}</p>
             </div>
           </div>
           <div className="text-xs text-gray-500">
-            Doel: {profiel.ayaatPerWeek} ayaat/week
+            {t("hifdh_doel")}: {profiel.ayaatPerWeek} {t("hifdh_ayaat_week")}
             {profiel.opmerkingen && <span className="ml-2 text-amber-600 italic">· {profiel.opmerkingen}</span>}
           </div>
 
           {showProgress && (
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-600 mb-2">Juz 30</p>
+              <p className="text-xs font-medium text-gray-600 mb-2">{t("hifdh_juz30")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {SURAHS.filter((s) => s.juz === 30).reverse().map((surah) => {
                   const status = getSurahStatus(surah.nr);
@@ -208,14 +206,14 @@ export default function LeerlingHifdhPage() {
       {/* Weekly tasks — read-only */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Weekelijkse taken</h2>
-          <p className="text-xs text-gray-400 italic">Wordt afgevinkt door de docent</p>
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t("hifdh_weekelijkse_taken")}</h2>
+          <p className="text-xs text-gray-400 italic">{t("hifdh_docent_afvinkt")}</p>
         </div>
 
         {Object.keys(weekGroups).length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-gray-400 text-sm">
-              Nog geen taken. Uw docent voegt ze toe.
+              {t("hifdh_geen_taken")}
             </CardContent>
           </Card>
         ) : (
@@ -244,7 +242,7 @@ export default function LeerlingHifdhPage() {
                         <p className="text-sm font-medium text-gray-900">{weekLabel(weekKey)}</p>
                         {isHuidigeWeek && (
                           <span className="text-xs bg-green-100 text-green-700 rounded-full px-1.5 py-0.5">
-                            Deze week
+                            {t("hifdh_deze_week")}
                           </span>
                         )}
                       </div>
@@ -277,14 +275,14 @@ export default function LeerlingHifdhPage() {
                                 <span className={`text-xs rounded px-1.5 py-0.5 font-medium ${
                                   taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
                                 }`}>
-                                  {taak.type === "NIEUW" ? "Nieuw" : "Herhaling"}
+                                  {taak.type === "NIEUW" ? t("hifdh_nieuw_label") : t("hifdh_herhaling_label")}
                                 </span>
                                 <p className={`text-sm font-medium ${taak.voltooid ? "text-green-700 line-through" : "text-gray-900"}`}>
                                   {surah?.naamAr} ({surah?.naam})
                                 </p>
                               </div>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                Ayah {taak.vanAyah} – {taak.totAyah} · {taak.totAyah - taak.vanAyah + 1} ayaat
+                                {t("hifdh_ayah")} {taak.vanAyah} – {taak.totAyah} · {taak.totAyah - taak.vanAyah + 1} {t("hifdh_ayaat_week").split("/")[0]}
                               </p>
                             </div>
                             {taak.voltooid && taak.voltooidOp && (
