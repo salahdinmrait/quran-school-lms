@@ -125,6 +125,103 @@ async function findHifdhVakId(leerlingId: string): Promise<string | null> {
 }
 
 /**
+ * When a specific NIEUW task is edited (totAyah changed), update it
+ * and delete all subsequent OPEN NIEUW tasks, then regenerate them
+ * from the new end-position — preserving the original weekStart dates.
+ * HERHALING tasks and already-completed tasks are never touched.
+ */
+export async function reshuffleTakenFrom(
+  profielId: string,
+  editedTaskId: string,
+  newTotAyah: number
+): Promise<void> {
+  // 1. Load profiel + all tasks
+  const profiel = await prisma.hifdhProfiel.findUnique({
+    where: { id: profielId },
+    include: { taken: { orderBy: { weekStart: "asc" } } },
+  });
+  if (!profiel) return;
+
+  const editedTask = profiel.taken.find((t) => t.id === editedTaskId);
+  if (!editedTask || editedTask.voltooid) return;
+
+  // 2. Cap totAyah to surah boundaries
+  const surahSize = getSurahAyaat(editedTask.surahNr);
+  const cappedTotAyah = Math.max(editedTask.vanAyah, Math.min(newTotAyah, surahSize));
+
+  // 3. Update the edited task itself
+  await prisma.hifdhTaak.update({ where: { id: editedTaskId }, data: { totAyah: cappedTotAyah } });
+
+  // 4. Find subsequent OPEN NIEUW tasks (strictly later weeks)
+  const editedTime = new Date(editedTask.weekStart).getTime();
+  const toReplace = profiel.taken
+    .filter((t) => new Date(t.weekStart).getTime() > editedTime && t.type === "NIEUW" && !t.voltooid)
+    .sort((a, b) => new Date(a.weekStart).getTime() - new Date(b.weekStart).getTime());
+
+  if (toReplace.length === 0) return; // no cascade needed
+
+  // 5. Preserve their weekStart dates, then delete them
+  const weekDates = toReplace.map((t) => new Date(t.weekStart));
+  await prisma.hifdhTaak.deleteMany({ where: { id: { in: toReplace.map((t) => t.id) } } });
+
+  // 6. Compute start position after the (now updated) edited task
+  let curSurah: number;
+  let curAyah: number;
+  if (cappedTotAyah >= surahSize) {
+    curSurah = editedTask.surahNr - 1;
+    curAyah = 1;
+  } else {
+    curSurah = editedTask.surahNr;
+    curAyah = cappedTotAyah + 1;
+  }
+
+  const vakId = await findHifdhVakId(profiel.leerlingId);
+
+  // 7. Regenerate tasks for each freed week slot
+  for (const weekStart of weekDates) {
+    if (curSurah < 1) break; // Quran completed
+
+    const thisSize = getSurahAyaat(curSurah);
+    const remaining = thisSize - curAyah + 1;
+    const totAyah = remaining <= profiel.ayaatPerWeek ? thisSize : curAyah + profiel.ayaatPerWeek - 1;
+
+    const surahNaam = getSurahNaam(curSurah);
+    const titel = `Hifdh: ${surahNaam} · ayah ${curAyah}–${totAyah}`;
+    const deadline = new Date(weekStart);
+    deadline.setDate(deadline.getDate() + 6);
+
+    let huiswerkId: string | null = null;
+    if (vakId) {
+      const hw = await prisma.huiswerk.create({
+        data: {
+          titel,
+          beschrijving: `Memoriseer ${totAyah - curAyah + 1} ayaat van ${surahNaam} (ayah ${curAyah} t/m ${totAyah}).`,
+          deadline,
+          vakId,
+        },
+      });
+      huiswerkId = hw.id;
+    }
+
+    await prisma.hifdhTaak.create({
+      data: {
+        profielId,
+        type: "NIEUW",
+        surahNr: curSurah,
+        vanAyah: curAyah,
+        totAyah,
+        weekStart,
+        ...(huiswerkId ? { huiswerkId } : {}),
+      },
+    });
+
+    // Advance position
+    if (totAyah >= thisSize) { curSurah--; curAyah = 1; }
+    else { curAyah = totAyah + 1; }
+  }
+}
+
+/**
  * Create 6 weeks of HifdhTaak records (+ linked Huiswerk) for a profiel.
  * weekStart defaults to the Monday of the current week.
  */

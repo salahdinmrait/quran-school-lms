@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   BookOpen, Plus, ChevronDown, ChevronUp, Loader2,
-  Trash2, CheckCircle, Circle, Users,
+  Trash2, CheckCircle, Circle, Users, Pencil, Check, X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,10 @@ interface Les {
   klas: { leerlingen: { leerling: Leerling }[] };
 }
 
+function getSurahAyaat(surahNr: number): number {
+  return SURAHS.find((s) => s.nr === surahNr)?.ayaat ?? 999;
+}
+
 export default function DocentHifdhPage() {
   const [profielen, setProfielen] = useState<HifdhProfiel[]>([]);
   const [leerlingen, setLeerlingen] = useState<Leerling[]>([]);
@@ -36,15 +40,19 @@ export default function DocentHifdhPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showProfielForm, setShowProfielForm] = useState(false);
   const [savingProfiel, setSavingProfiel] = useState(false);
-  const [savingTaak, setSavingTaak] = useState<string | null>(null); // profielId
+  const [savingTaak, setSavingTaak] = useState<string | null>(null);
   const [togglingTaakId, setTogglingTaakId] = useState<string | null>(null);
+
+  // Inline edit state
+  const [editingTaakId, setEditingTaakId] = useState<string | null>(null);
+  const [editTotAyah, setEditTotAyah] = useState<string>("");
+  const [cascading, setCascading] = useState(false);
 
   const [profielForm, setProfielForm] = useState({
     leerlingId: "", startSurahNr: "114", startAyahNr: "1",
     ayaatPerWeek: "5", opmerkingen: "",
   });
 
-  // Taak form per profiel (keyed by profielId)
   const [taakForms, setTaakForms] = useState<Record<string, {
     type: string; surahNr: string; vanAyah: string; totAyah: string; weekStart: string;
   }>>({});
@@ -55,7 +63,6 @@ export default function DocentHifdhPage() {
       fetch("/api/docent/lessen").then((r) => r.json()),
     ]).then(([hifdhData, lesData]) => {
       setProfielen(Array.isArray(hifdhData) ? hifdhData : []);
-      // Extract unique leerlingen from lessen
       const map = new Map<string, Leerling>();
       if (Array.isArray(lesData)) {
         for (const les of lesData as Les[]) {
@@ -147,13 +154,12 @@ export default function DocentHifdhPage() {
       });
       if (!res.ok) throw new Error();
       const updated = await res.json();
-      toast.success(taak.voltooid ? "Taak gemarkeerd als openstaand." : `✓ Taak voltooid voor leerling.`);
+      toast.success(taak.voltooid ? "Taak gemarkeerd als openstaand." : "✓ Taak voltooid voor leerling.");
       setProfielen((prev) => prev.map((p) =>
         p.id === profielId
           ? { ...p, taken: p.taken.map((t) => t.id === taak.id ? { ...t, voltooid: updated.voltooid, voltooidOp: updated.voltooidOp } : t) }
           : p
       ));
-      // Reload profiel to get any new auto-generated tasks
       if (!taak.voltooid) {
         const refreshed = await fetch("/api/hifdh").then((r) => r.json());
         if (Array.isArray(refreshed)) setProfielen(refreshed);
@@ -177,7 +183,33 @@ export default function DocentHifdhPage() {
     }
   }
 
-  // Group taken by week for display
+  async function confirmEdit(profielId: string, taak: HifdhTaak) {
+    const val = Number(editTotAyah);
+    if (!val || val < taak.vanAyah || val > getSurahAyaat(taak.surahNr)) {
+      toast.error(`Voer een geldige ayah in (${taak.vanAyah}–${getSurahAyaat(taak.surahNr)}).`);
+      return;
+    }
+    if (val === taak.totAyah) { setEditingTaakId(null); return; } // no change
+    setCascading(true);
+    try {
+      const res = await fetch(`/api/hifdh/taken/${taak.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ totAyah: val }),
+      });
+      if (!res.ok) throw new Error();
+      const updatedProfiel = await res.json();
+      setProfielen((prev) => prev.map((p) => p.id === profielId ? updatedProfiel : p));
+      setEditingTaakId(null);
+      const diff = val - taak.totAyah;
+      toast.success(`Taak aangepast (${diff > 0 ? "+" : ""}${diff} ayaat). Volgende weken bijgewerkt.`);
+    } catch {
+      toast.error("Aanpassen mislukt.");
+    } finally {
+      setCascading(false);
+    }
+  }
+
   function groupByWeek(taken: HifdhTaak[]) {
     const groups: Record<string, HifdhTaak[]> = {};
     for (const t of taken) {
@@ -297,11 +329,15 @@ export default function DocentHifdhPage() {
             const voltooide = profiel.taken.filter((t) => t.voltooid).length;
             const huidigeSurah = getSurah(profiel.huidigeSurahNr);
             const weekGroups = groupByWeek(profiel.taken);
-            const taakForm = taakForms[profiel.id] ?? { type: "NIEUW", surahNr: String(profiel.huidigeSurahNr), vanAyah: "", totAyah: "", weekStart: new Date().toISOString().slice(0, 10) };
+            const taakForm = taakForms[profiel.id] ?? {
+              type: "NIEUW", surahNr: String(profiel.huidigeSurahNr),
+              vanAyah: "", totAyah: "", weekStart: new Date().toISOString().slice(0, 10),
+            };
 
             return (
               <Card key={profiel.id}>
                 <CardContent className="py-4 px-4">
+                  {/* Profiel header */}
                   <button
                     className="w-full flex items-center gap-3 text-left"
                     onClick={() => setExpandedId(isExpanded ? null : profiel.id)}
@@ -317,12 +353,20 @@ export default function DocentHifdhPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-green-700 font-medium">
-                        {voltooide}/{profiel.taken.length} ✓
-                      </span>
+                      <span className="text-xs text-green-700 font-medium">{voltooide}/{profiel.taken.length} ✓</span>
                       <button
                         className="p-1 rounded hover:bg-gray-100"
-                        onClick={(e) => { e.stopPropagation(); setShowProfielForm(true); setProfielForm({ leerlingId: profiel.leerlingId, startSurahNr: String(profiel.startSurahNr), startAyahNr: String(profiel.startAyahNr), ayaatPerWeek: String(profiel.ayaatPerWeek), opmerkingen: profiel.opmerkingen ?? "" }); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowProfielForm(true);
+                          setProfielForm({
+                            leerlingId: profiel.leerlingId,
+                            startSurahNr: String(profiel.startSurahNr),
+                            startAyahNr: String(profiel.startAyahNr),
+                            ayaatPerWeek: String(profiel.ayaatPerWeek),
+                            opmerkingen: profiel.opmerkingen ?? "",
+                          });
+                        }}
                         title="Profiel bewerken"
                       >
                         <Users className="h-3.5 w-3.5 text-gray-400" />
@@ -333,7 +377,7 @@ export default function DocentHifdhPage() {
 
                   {isExpanded && (
                     <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
-                      {/* Taken per week */}
+                      {/* Tasks per week */}
                       {Object.entries(weekGroups).sort(([a], [b]) => a.localeCompare(b)).map(([weekKey, taken]) => {
                         const allDone = taken.every((t) => t.voltooid);
                         return (
@@ -345,11 +389,15 @@ export default function DocentHifdhPage() {
                               {taken.map((taak) => {
                                 const surah = getSurah(taak.surahNr);
                                 const isToggling = togglingTaakId === taak.id;
+                                const isEditing = editingTaakId === taak.id;
+                                const maxAyah = getSurahAyaat(taak.surahNr);
+
                                 return (
                                   <div key={taak.id} className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm ${taak.voltooid ? "bg-green-50" : "bg-gray-50"}`}>
+                                    {/* Toggle check */}
                                     <button
-                                      onClick={() => !isToggling && toggleTaak(profiel.id, taak)}
-                                      disabled={isToggling}
+                                      onClick={() => !isToggling && !isEditing && toggleTaak(profiel.id, taak)}
+                                      disabled={isToggling || isEditing}
                                       title={taak.voltooid ? "Klik om te openen" : "Klik om af te vinken"}
                                       className="shrink-0"
                                     >
@@ -360,18 +408,89 @@ export default function DocentHifdhPage() {
                                         : <Circle className="h-3.5 w-3.5 text-gray-300 hover:text-green-500" />
                                       }
                                     </button>
-                                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+
+                                    {/* Type badge */}
+                                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${taak.type === "NIEUW" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
                                       {taak.type === "NIEUW" ? "Nieuw" : "Herh."}
                                     </span>
-                                    <span className={`flex-1 font-medium ${taak.voltooid ? "text-green-700" : "text-gray-800"}`}>
-                                      {surah?.naamAr} v{taak.vanAyah}–{taak.totAyah}
-                                    </span>
-                                    <button
-                                      onClick={() => deleteTaak(profiel.id, taak.id)}
-                                      className="p-0.5 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+
+                                    {/* Task content — normal or inline edit */}
+                                    {isEditing ? (
+                                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                        <span className="text-xs text-gray-600 shrink-0">
+                                          {surah?.naamAr} v{taak.vanAyah}–
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={taak.vanAyah}
+                                          max={maxAyah}
+                                          value={editTotAyah}
+                                          onChange={(e) => setEditTotAyah(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") confirmEdit(profiel.id, taak);
+                                            if (e.key === "Escape") setEditingTaakId(null);
+                                          }}
+                                          className="w-14 rounded border border-blue-400 text-xs px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                          autoFocus
+                                        />
+                                        <span className="text-xs text-gray-400 shrink-0">/ {maxAyah}</span>
+                                        {/* Confirm */}
+                                        <button
+                                          onClick={() => confirmEdit(profiel.id, taak)}
+                                          disabled={cascading}
+                                          className="p-0.5 rounded bg-green-100 hover:bg-green-200 text-green-700 shrink-0"
+                                          title="Opslaan + cascade"
+                                        >
+                                          {cascading
+                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            : <Check className="h-3.5 w-3.5" />
+                                          }
+                                        </button>
+                                        {/* Cancel */}
+                                        <button
+                                          onClick={() => setEditingTaakId(null)}
+                                          disabled={cascading}
+                                          className="p-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 shrink-0"
+                                          title="Annuleren"
+                                        >
+                                          <X className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className={`flex-1 font-medium min-w-0 ${taak.voltooid ? "text-green-700" : "text-gray-800"}`}>
+                                        {surah?.naamAr} v{taak.vanAyah}–{taak.totAyah}
+                                        <span className="text-xs font-normal text-gray-400 ml-1">
+                                          ({taak.totAyah - taak.vanAyah + 1} ayaat)
+                                        </span>
+                                      </span>
+                                    )}
+
+                                    {/* Action buttons — only when not editing */}
+                                    {!isEditing && (
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        {/* Edit pencil (only for non-completed NIEUW tasks) */}
+                                        {taak.type === "NIEUW" && !taak.voltooid && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingTaakId(taak.id);
+                                              setEditTotAyah(String(taak.totAyah));
+                                            }}
+                                            className="p-0.5 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors"
+                                            title="Ayaat aanpassen (cascade)"
+                                          >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                        {/* Delete */}
+                                        <button
+                                          onClick={() => deleteTaak(profiel.id, taak.id)}
+                                          className="p-0.5 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                                          title="Verwijderen"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}

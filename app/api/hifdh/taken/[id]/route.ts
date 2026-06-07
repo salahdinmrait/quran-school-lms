@@ -1,12 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { nextPositionAfterTask, buildTaakData } from "@/lib/hifdh-utils";
+import { nextPositionAfterTask, buildTaakData, reshuffleTakenFrom } from "@/lib/hifdh-utils";
 import { SURAHS } from "@/lib/quran";
 
 function getSurahNaam(surahNr: number): string {
   const s = SURAHS.find((s) => s.nr === surahNr);
   return s ? `${s.naam} (${s.naamAr})` : `Surah ${surahNr}`;
+}
+
+// PATCH /api/hifdh/taken/[id] — edit totAyah + cascade subsequent open tasks
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "DOCENT" && session.user.role !== "ADMIN")) {
+    return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const { totAyah } = await req.json();
+  if (!totAyah || isNaN(Number(totAyah))) {
+    return NextResponse.json({ error: "totAyah is verplicht" }, { status: 400 });
+  }
+
+  const taak = await prisma.hifdhTaak.findUnique({ where: { id } });
+  if (!taak) return NextResponse.json({ error: "Taak niet gevonden" }, { status: 404 });
+  if (taak.voltooid) return NextResponse.json({ error: "Voltooide taken kunnen niet worden aangepast" }, { status: 400 });
+
+  await reshuffleTakenFrom(taak.profielId, id, Number(totAyah));
+
+  // Return full updated profiel so the client can replace local state
+  const profiel = await prisma.hifdhProfiel.findUnique({
+    where: { id: taak.profielId },
+    include: {
+      leerling: { select: { id: true, name: true, email: true } },
+      taken: { orderBy: { weekStart: "asc" } },
+    },
+  });
+  return NextResponse.json(profiel);
 }
 
 // PUT /api/hifdh/taken/[id] — DOCENT/ADMIN only: toggle voltooid
