@@ -77,12 +77,13 @@ export default function HuiswerkPage() {
   });
   const [bijlage, setBijlage] = useState<{ naam: string; data: string; type: string } | null>(null);
   const [bijlageLoading, setBijlageLoading] = useState(false);
+  const [klassenFetchError, setKlassenFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/docent/lessen").then((r) => r.json()),
-      fetch("/api/docent/huiswerk").then((r) => r.json()),
-      fetch("/api/docent/klassen").then((r) => r.json()),
+      fetch("/api/docent/lessen").then((r) => r.json()).catch(() => []),
+      fetch("/api/docent/huiswerk").then((r) => r.json()).catch(() => []),
+      fetch("/api/docent/klassen").then((r) => r.json()).catch(() => ({ error: "Netwerk fout" })),
     ]).then(([lesData, hwData, klasData]) => {
       const les: Les[] = Array.isArray(lesData) ? lesData : [];
       const hw: HuiswerkItem[] = Array.isArray(hwData) ? hwData : [];
@@ -99,6 +100,9 @@ export default function HuiswerkPage() {
             leerlingen: k.leerlingen,
           }))
         );
+        setKlassenFetchError(null);
+      } else if (klasData && typeof klasData === "object" && "error" in klasData) {
+        setKlassenFetchError(String(klasData.error));
       }
 
       const initOp: Record<string, string> = {};
@@ -358,16 +362,28 @@ export default function HuiswerkPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Klas</label>
-                  <select name="selectedKlasId" value={form.selectedKlasId} onChange={handleChange}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                    <option value="">— Selecteer klas —</option>
-                    {klassenDirect.map((k) => <option key={k.id} value={k.id}>{k.naam}</option>)}
-                  </select>
+                  {klassenFetchError ? (
+                    <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                      Klassen konden niet worden geladen: {klassenFetchError}
+                    </p>
+                  ) : klassenDirect.length === 0 ? (
+                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      U bent nog niet aan een klas gekoppeld. Vraag de beheerder om u te koppelen
+                      via <strong>Beheer → Klassen → [klas] → Docenten</strong>.
+                    </p>
+                  ) : (
+                    <select name="selectedKlasId" value={form.selectedKlasId} onChange={handleChange}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+                      <option value="">— Selecteer klas —</option>
+                      {klassenDirect.map((k) => <option key={k.id} value={k.id}>{k.naam}</option>)}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Vak *</label>
                   <select name="vakId" value={form.vakId} onChange={handleChange} required
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    disabled={klassenDirect.length === 0}>
                     <option value="">— Selecteer vak —</option>
                     {vakkenForKlas.map((v) => <option key={v.id} value={v.id}>{v.naam}</option>)}
                   </select>
