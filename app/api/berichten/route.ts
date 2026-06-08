@@ -32,7 +32,7 @@ export async function GET() {
   >();
 
   for (const b of verzondenRaw) {
-    const key = b.groepId ?? b.id; // ungrouped messages use their own id
+    const key = b.groepId ?? b.id;
     if (!verzondenMap.has(key)) {
       verzondenMap.set(key, { bericht: b, count: 1 });
     } else {
@@ -48,46 +48,88 @@ export async function GET() {
     createdAt: bericht.createdAt,
     doelLabel: bericht.doelLabel,
     aantalOntvangers: count,
-    // For single message show the recipient name; for broadcast show doelLabel
     ontvanger: count === 1 ? bericht.ontvanger : null,
   }));
 
   return NextResponse.json({ inbox: inboxRaw, verzonden });
 }
 
-// POST /api/berichten — send a message (DOCENT / ADMIN only)
-// Body: { onderwerp, inhoud, doelType: "LEERLING"|"KLAS", doelId }
+/**
+ * POST /api/berichten — send a message
+ *
+ * doelType options:
+ *   "GEBRUIKERS"       — doelIds: string[]   (specific users, any role)
+ *   "KLAS_LEERLINGEN"  — doelId: string      (all leerlingen in klas)
+ *   "KLAS_OUDERS"      — doelId: string      (all ouders of leerlingen in klas)
+ *
+ * Role rules:
+ *   ADMIN/DOCENT: all doelTypes allowed
+ *   LEERLING: only "GEBRUIKERS" allowed, and only to DOCENT/ADMIN targets
+ */
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
   }
-  if (session.user.role !== "DOCENT" && session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Alleen docenten en beheerders mogen berichten sturen" }, { status: 403 });
+
+  const role = session.user.role;
+  const verzenderId = session.user.id;
+
+  // Only allowed roles
+  if (role !== "DOCENT" && role !== "ADMIN" && role !== "LEERLING") {
+    return NextResponse.json(
+      { error: "Alleen docenten, beheerders en leerlingen mogen hier berichten sturen" },
+      { status: 403 }
+    );
   }
 
-  const verzenderId = session.user.id;
-  const { onderwerp, inhoud, doelType, doelId } = await req.json();
+  const { onderwerp, inhoud, doelType, doelId, doelIds } = await req.json();
 
-  if (!onderwerp || !inhoud || !doelType || !doelId) {
+  if (!onderwerp || !inhoud || !doelType) {
     return NextResponse.json(
-      { error: "onderwerp, inhoud, doelType en doelId zijn verplicht" },
+      { error: "onderwerp, inhoud en doelType zijn verplicht" },
       { status: 400 }
     );
   }
 
-  // Collect recipient IDs and a label for the verzonden view
   let ontvangerIds: string[] = [];
   let doelLabel: string = "";
 
-  if (doelType === "LEERLING") {
-    const user = await prisma.user.findUnique({ where: { id: doelId } });
-    if (!user || user.role !== "LEERLING") {
-      return NextResponse.json({ error: "Leerling niet gevonden" }, { status: 404 });
+  if (doelType === "GEBRUIKERS") {
+    const ids: string[] = Array.isArray(doelIds) ? doelIds : doelId ? [doelId] : [];
+    if (ids.length === 0) {
+      return NextResponse.json({ error: "Geen ontvangers opgegeven" }, { status: 400 });
     }
-    ontvangerIds = [doelId];
-    doelLabel = user.name;
-  } else if (doelType === "KLAS") {
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, role: true },
+    });
+
+    if (users.length === 0) {
+      return NextResponse.json({ error: "Geen geldige ontvangers gevonden" }, { status: 404 });
+    }
+
+    // LEERLING can only send to DOCENT/ADMIN
+    if (role === "LEERLING") {
+      const invalidTargets = users.filter(
+        (u) => u.role !== "DOCENT" && u.role !== "ADMIN"
+      );
+      if (invalidTargets.length > 0) {
+        return NextResponse.json(
+          { error: "Leerlingen kunnen alleen reageren naar docenten of beheerders" },
+          { status: 403 }
+        );
+      }
+    }
+
+    ontvangerIds = users.map((u) => u.id);
+    doelLabel = users.length === 1 ? users[0].name : `${users.length} ontvangers`;
+
+  } else if (doelType === "KLAS_LEERLINGEN") {
+    if (role === "LEERLING") {
+      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    }
     const klas = await prisma.klas.findUnique({
       where: { id: doelId },
       include: { leerlingen: { select: { leerlingId: true } } },
@@ -96,7 +138,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
     }
     ontvangerIds = klas.leerlingen.map((kl) => kl.leerlingId);
-    doelLabel = `Klas ${klas.naam}`;
+    doelLabel = `Klas ${klas.naam} (leerlingen)`;
+
+  } else if (doelType === "KLAS_OUDERS") {
+    if (role === "LEERLING") {
+      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    }
+    const klas = await prisma.klas.findUnique({
+      where: { id: doelId },
+      include: {
+        leerlingen: {
+          include: {
+            leerling: {
+              include: {
+                kindVan: { select: { ouderId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!klas) {
+      return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+    }
+    const ouderIds = new Set<string>();
+    for (const { leerling } of klas.leerlingen) {
+      for (const { ouderId } of leerling.kindVan) {
+        ouderIds.add(ouderId);
+      }
+    }
+    ontvangerIds = Array.from(ouderIds);
+    doelLabel = `Ouders van klas ${klas.naam}`;
+
   } else {
     return NextResponse.json({ error: "Ongeldig doelType" }, { status: 400 });
   }
@@ -108,10 +181,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Generate a shared groepId for broadcasts; single message gets no groepId
-  const groepId = ontvangerIds.length > 1
-    ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    : null;
+  const groepId =
+    ontvangerIds.length > 1
+      ? `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      : null;
 
   try {
     const berichten = await prisma.$transaction(

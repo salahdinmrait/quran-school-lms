@@ -56,6 +56,7 @@ const MEDAL = ["🥇", "🥈", "🥉"];
 
 export default function HuiswerkPage() {
   const [lessen, setLessen] = useState<Les[]>([]);
+  const [klassenDirect, setKlassenDirect] = useState<{ id: string; naam: string; vakken: Vak[]; leerlingen: LeerlingInfo[] }[]>([]);
   const [huiswerk, setHuiswerk] = useState<HuiswerkItem[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -81,11 +82,24 @@ export default function HuiswerkPage() {
     Promise.all([
       fetch("/api/docent/lessen").then((r) => r.json()),
       fetch("/api/docent/huiswerk").then((r) => r.json()),
-    ]).then(([lesData, hwData]) => {
+      fetch("/api/docent/klassen").then((r) => r.json()),
+    ]).then(([lesData, hwData, klasData]) => {
       const les: Les[] = Array.isArray(lesData) ? lesData : [];
       const hw: HuiswerkItem[] = Array.isArray(hwData) ? hwData : [];
       setLessen(les);
       setHuiswerk(hw);
+
+      // Store klassen from direct API for the form (avoids dependency on lessons existing)
+      if (Array.isArray(klasData)) {
+        setKlassenDirect(
+          klasData.map((k: { id: string; naam: string; vakken: { id: string; naam: string; categorie: string }[]; leerlingen: { id: string; name: string }[] }) => ({
+            id: k.id,
+            naam: k.naam,
+            vakken: k.vakken,
+            leerlingen: k.leerlingen,
+          }))
+        );
+      }
 
       const initOp: Record<string, string> = {};
       for (const h of hw) {
@@ -109,14 +123,17 @@ export default function HuiswerkPage() {
     }).catch(() => setIsFetching(false));
   }, []);
 
-  // Derived: unique klassen from lessen
+  // Derived: unique klassen from lessen (for leerlingen / ranking purposes)
   const klassenMap = new Map<string, Klas>();
   for (const les of lessen) {
     if (!klassenMap.has(les.klas.id)) klassenMap.set(les.klas.id, les.klas);
   }
   const klassen = Array.from(klassenMap.values());
-  const selectedKlas = klassen.find((k) => k.id === form.selectedKlasId);
-  const vakkenForKlas = selectedKlas?.vakken.map((kv) => kv.vak) ?? [];
+
+  // For the FORM: use klassenDirect (independent of lessons existing)
+  const formKlassenMap = new Map(klassenDirect.map((k) => [k.id, k]));
+  const formKlas = formKlassenMap.get(form.selectedKlasId);
+  const vakkenForKlas = formKlas?.vakken ?? [];
   const lessenForKlas = lessen.filter((l) => l.klas.id === form.selectedKlasId);
 
   // For a huiswerk, find all leerlingen across klassen that have its vak
@@ -344,7 +361,7 @@ export default function HuiswerkPage() {
                   <select name="selectedKlasId" value={form.selectedKlasId} onChange={handleChange}
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
                     <option value="">— Selecteer klas —</option>
-                    {klassen.map((k) => <option key={k.id} value={k.id}>{k.naam}</option>)}
+                    {klassenDirect.map((k) => <option key={k.id} value={k.id}>{k.naam}</option>)}
                   </select>
                 </div>
                 <div>

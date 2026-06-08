@@ -39,7 +39,7 @@ interface Klas {
 
 type DoelType = "LEERLINGEN" | "KLAS_LEERLINGEN" | "OUDERS" | "KLAS_OUDERS";
 
-export default function BerichtenPage() {
+export default function AdminBerichtenPage() {
   const [inbox, setInbox] = useState<BerichtIn[]>([]);
   const [verzonden, setVerzonden] = useState<BerichtUit[]>([]);
   const [klassen, setKlassen] = useState<Klas[]>([]);
@@ -57,7 +57,7 @@ export default function BerichtenPage() {
   useEffect(() => {
     Promise.all([
       fetch("/api/berichten").then((r) => r.json()),
-      fetch("/api/docent/klassen").then((r) => r.json()),
+      fetch("/api/admin/berichten-data").then((r) => r.json()),
     ]).then(([berichtData, klasData]) => {
       setInbox(berichtData.inbox ?? []);
       setVerzonden(berichtData.verzonden ?? []);
@@ -66,7 +66,6 @@ export default function BerichtenPage() {
     }).catch(() => setIsFetching(false));
   }, []);
 
-  // All unique personen across klassen
   function getAllPersonen(type: "leerlingen" | "ouders"): Persoon[] {
     const map = new Map<string, Persoon>();
     for (const klas of klassen) {
@@ -151,7 +150,7 @@ export default function BerichtenPage() {
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Berichten</h1>
-        <p className="text-gray-500 mt-1 text-sm">Berichten sturen en ontvangen.</p>
+        <p className="text-gray-500 mt-1 text-sm">Berichten sturen naar leerlingen en ouders.</p>
       </div>
 
       {/* Tab nav */}
@@ -251,71 +250,71 @@ export default function BerichtenPage() {
             <CardTitle className="text-base text-gray-900">Bericht versturen</CardTitle>
           </CardHeader>
           <CardContent>
-            {klassen.length === 0 ? (
-              <p className="text-sm text-gray-500">U bent nog niet aan een klas gekoppeld. Neem contact op met de beheerder.</p>
-            ) : (
-              <form onSubmit={handleSend} className="space-y-4">
-                {/* Doel type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sturen naar</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {doelTypeOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => { setDoelType(opt.value); setSelectedIds([]); setSelectedKlasId(""); }}
-                        className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors text-left ${
-                          doelType === opt.value
-                            ? "bg-green-700 text-white border-green-700"
-                            : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Klas selector (for broadcast types) */}
-                {(doelType === "KLAS_LEERLINGEN" || doelType === "KLAS_OUDERS") && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Klas <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedKlasId}
-                      onChange={(e) => setSelectedKlasId(e.target.value)}
-                      required
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+            <form onSubmit={handleSend} className="space-y-4">
+              {/* Doel type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Sturen naar</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {doelTypeOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { setDoelType(opt.value); setSelectedIds([]); setSelectedKlasId(""); }}
+                      className={`px-3 py-2 rounded-md text-sm font-medium border transition-colors text-left ${
+                        doelType === opt.value
+                          ? "bg-green-700 text-white border-green-700"
+                          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                      }`}
                     >
-                      <option value="">— Selecteer klas —</option>
-                      {klassen.map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.naam}
-                          {doelType === "KLAS_OUDERS" && ` (${k.ouders.length} ouder${k.ouders.length !== 1 ? "s" : ""})`}
-                          {doelType === "KLAS_LEERLINGEN" && ` (${k.leerlingen.length} leerling${k.leerlingen.length !== 1 ? "en" : ""})`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                {/* Multi-select personen */}
-                {(doelType === "LEERLINGEN" || doelType === "OUDERS") && allePersonen.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-sm font-medium text-gray-700">
-                        {doelType === "LEERLINGEN" ? "Leerling(en)" : "Ouder(s)"}
-                        <span className="text-red-500 ml-0.5">*</span>
-                        {selectedIds.length > 0 && (
-                          <span className="ml-2 text-green-700 font-normal">({selectedIds.length} geselecteerd)</span>
-                        )}
-                      </label>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={selectAll} className="text-xs text-green-700 hover:underline">Alles</button>
-                        <button type="button" onClick={deselectAll} className="text-xs text-gray-400 hover:underline">Niets</button>
-                      </div>
+              {/* Klas selector */}
+              {(doelType === "KLAS_LEERLINGEN" || doelType === "KLAS_OUDERS") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Klas <span className="text-red-500">*</span></label>
+                  <select
+                    value={selectedKlasId}
+                    onChange={(e) => setSelectedKlasId(e.target.value)}
+                    required
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">— Selecteer klas —</option>
+                    {klassen.map((k) => (
+                      <option key={k.id} value={k.id}>
+                        {k.naam}
+                        {doelType === "KLAS_OUDERS" && ` (${k.ouders.length} ouder${k.ouders.length !== 1 ? "s" : ""})`}
+                        {doelType === "KLAS_LEERLINGEN" && ` (${k.leerlingen.length} leerling${k.leerlingen.length !== 1 ? "en" : ""})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Multi-select personen */}
+              {(doelType === "LEERLINGEN" || doelType === "OUDERS") && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {doelType === "LEERLINGEN" ? "Leerling(en)" : "Ouder(s)"}
+                      <span className="text-red-500 ml-0.5">*</span>
+                      {selectedIds.length > 0 && (
+                        <span className="ml-2 text-green-700 font-normal">({selectedIds.length} geselecteerd)</span>
+                      )}
+                    </label>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={selectAll} className="text-xs text-green-700 hover:underline">Alles</button>
+                      <button type="button" onClick={deselectAll} className="text-xs text-gray-400 hover:underline">Niets</button>
                     </div>
+                  </div>
+                  {allePersonen.length === 0 ? (
+                    <p className="text-sm text-amber-600">
+                      {doelType === "OUDERS" ? "Geen ouders gevonden (koppel ouders aan leerlingen)." : "Geen leerlingen gevonden."}
+                    </p>
+                  ) : (
                     <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 divide-y divide-gray-100">
                       {allePersonen.map((p) => (
                         <label
@@ -337,33 +336,27 @@ export default function BerichtenPage() {
                         </label>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {(doelType === "LEERLINGEN" || doelType === "OUDERS") && allePersonen.length === 0 && (
-                  <p className="text-sm text-amber-600">
-                    {doelType === "OUDERS" ? "Geen ouders gekoppeld aan leerlingen in uw klassen." : "Geen leerlingen gevonden."}
-                  </p>
-                )}
-
-                {/* Onderwerp */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Onderwerp <span className="text-red-500">*</span></label>
-                  <Input value={onderwerp} onChange={(e) => setOnderwerp(e.target.value)} placeholder="bijv. Huiswerk week 5" required />
+                  )}
                 </div>
+              )}
 
-                {/* Inhoud */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bericht <span className="text-red-500">*</span></label>
-                  <Textarea value={inhoud} onChange={(e) => setInhoud(e.target.value)} placeholder="Schrijf uw bericht hier…" rows={5} required />
-                </div>
+              {/* Onderwerp */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Onderwerp <span className="text-red-500">*</span></label>
+                <Input value={onderwerp} onChange={(e) => setOnderwerp(e.target.value)} placeholder="bijv. Aankondiging schoolavond" required />
+              </div>
 
-                <Button type="submit" disabled={sending} className="bg-green-700 hover:bg-green-800 text-white">
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
-                  Versturen
-                </Button>
-              </form>
-            )}
+              {/* Inhoud */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bericht <span className="text-red-500">*</span></label>
+                <Textarea value={inhoud} onChange={(e) => setInhoud(e.target.value)} placeholder="Schrijf uw bericht hier…" rows={5} required />
+              </div>
+
+              <Button type="submit" disabled={sending} className="bg-green-700 hover:bg-green-800 text-white">
+                {sending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                Versturen
+              </Button>
+            </form>
           </CardContent>
         </Card>
       )}

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Users, BookOpen, GraduationCap,
-  Calendar, BarChart3, LogOut, School, Menu, X,
+  Calendar, BarChart3, LogOut, School, Menu, X, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -20,6 +20,7 @@ const navItemDefs = [
   { href: "/admin/klassen", key: "nav_klassenBeheer" as const, icon: School },
   { href: "/admin/vakken", key: "nav_vakken" as const, icon: BookOpen },
   { href: "/admin/rooster", key: "nav_rooster" as const, icon: Calendar },
+  { href: "/admin/berichten", key: "nav_berichten" as const, icon: MessageSquare },
   { href: "/admin/statistieken", key: "nav_statistieken" as const, icon: BarChart3 },
 ];
 
