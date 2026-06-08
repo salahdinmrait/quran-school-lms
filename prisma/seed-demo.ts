@@ -146,7 +146,7 @@ async function main() {
       aanwezigheidData.push({ lesId: les.id, leerlingId: leerling.id, status: rnd(statusOptions) });
     }
   }
-  await prisma.aanwezigheid.createMany({ data: aanwezigheidData, skipDuplicates: true });
+  await prisma.aanwezigheid.createMany({ data: aanwezigheidData });
   console.log(`  ✓ Aanwezigheidsrecords: ${aanwezigheidData.length}`);
 
   // ── 5. Huiswerk afvinken (~70% per student, batch) ──────────────────────────
@@ -159,7 +159,7 @@ async function main() {
       inleveringData.push({ huiswerkId: hw.id, leerlingId: shuffled[i].leerling.id, inhoud: "✓" });
     }
   }
-  await prisma.inlevering.createMany({ data: inleveringData, skipDuplicates: true });
+  await prisma.inlevering.createMany({ data: inleveringData });
   console.log(`  ✓ Huiswerk afgevinkt: ${inleveringData.length} inleveringen`);
 
   // ── 6. Cijfers (batch) ───────────────────────────────────────────────────────

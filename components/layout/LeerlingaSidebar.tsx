@@ -17,7 +17,6 @@ import { useLang } from "@/contexts/LanguageContext";
 const navItemDefs = [
   { href: "/leerling", key: "nav_dashboard" as const, icon: LayoutDashboard, exact: true },
   { href: "/leerling/rooster", key: "nav_rooster" as const, icon: Calendar },
-  { href: "/leerling/hifdh", key: "nav_hifdh" as const, icon: BookOpen },
   { href: "/leerling/cijfers", key: "nav_cijfers" as const, icon: Star },
   { href: "/leerling/absentie", key: "nav_absentie" as const, icon: UserCheck },
   { href: "/leerling/huiswerk", key: "nav_huiswerk" as const, icon: BookOpen },

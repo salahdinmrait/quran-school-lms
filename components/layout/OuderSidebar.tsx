@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
-  LayoutDashboard, BookOpen, MessageSquare,
+  LayoutDashboard, MessageSquare,
   LogOut, GraduationCap, Menu, X, TrendingUp, Calendar, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,6 @@ const navItemDefs = [
   { href: "/ouder/voortgang", key: "nav_voortgang" as const, icon: TrendingUp },
   { href: "/ouder/rooster", key: "nav_rooster" as const, icon: Calendar },
   { href: "/ouder/huiswerk", key: "nav_huiswerk" as const, icon: ClipboardList },
-  { href: "/ouder/hifdh", key: "nav_hifdh" as const, icon: BookOpen },
   { href: "/ouder/berichten", key: "nav_berichten" as const, icon: MessageSquare },
 ];
 

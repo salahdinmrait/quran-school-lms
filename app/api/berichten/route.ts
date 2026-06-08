@@ -55,12 +55,15 @@ export async function GET() {
   return NextResponse.json({ inbox: inboxRaw, verzonden });
 }
 
-// POST /api/berichten — send a message
-// Body: { onderwerp, inhoud, doelType: "LEERLING"|"KLAS"|"VAK", doelId }
+// POST /api/berichten — send a message (DOCENT / ADMIN only)
+// Body: { onderwerp, inhoud, doelType: "LEERLING"|"KLAS", doelId }
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+  }
+  if (session.user.role !== "DOCENT" && session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Alleen docenten en beheerders mogen berichten sturen" }, { status: 403 });
   }
 
   const verzenderId = session.user.id;
@@ -94,28 +97,6 @@ export async function POST(req: NextRequest) {
     }
     ontvangerIds = klas.leerlingen.map((kl) => kl.leerlingId);
     doelLabel = `Klas ${klas.naam}`;
-  } else if (doelType === "VAK") {
-    const vak = await prisma.vak.findUnique({
-      where: { id: doelId },
-      include: {
-        klassen: {
-          include: {
-            klas: { include: { leerlingen: { select: { leerlingId: true } } } },
-          },
-        },
-      },
-    });
-    if (!vak) {
-      return NextResponse.json({ error: "Vak niet gevonden" }, { status: 404 });
-    }
-    const ids = new Set<string>();
-    for (const kv of vak.klassen) {
-      for (const kl of kv.klas.leerlingen) {
-        ids.add(kl.leerlingId);
-      }
-    }
-    ontvangerIds = Array.from(ids);
-    doelLabel = `Vak ${vak.naam}`;
   } else {
     return NextResponse.json({ error: "Ongeldig doelType" }, { status: 400 });
   }

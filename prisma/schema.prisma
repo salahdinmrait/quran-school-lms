@@ -134,6 +134,10 @@ model Huiswerk {
   titel        String
   beschrijving String?
   deadline     DateTime?
+  // Optional file attachment (base64-encoded)
+  bijlageNaam  String?
+  bijlageData  String?      // base64-encoded file content
+  bijlageType  String?      // MIME type, e.g. "application/pdf"
   vak          Vak          @relation(fields: [vakId], references: [id])
   vakId        String
   les          Les?         @relation(fields: [lesId], references: [id])

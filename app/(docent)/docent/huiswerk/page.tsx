@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import {
   BookOpen, Plus, Trash2, Loader2, ChevronDown, ChevronUp,
-  CheckSquare, Square, Users, Trophy, MessageSquare, Save,
+  CheckSquare, Square, Users, Trophy, MessageSquare, Save, Paperclip, Download, X as XIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ interface HuiswerkItem {
   titel: string;
   beschrijving: string | null;
   deadline: string | null;
+  bijlageNaam: string | null;
+  hasBijlage: boolean;
   vak: Vak;
   les: { id: string; datum: string; begintijd: string; klas: { naam: string } } | null;
   inleveringen: Inlevering[];
@@ -72,6 +74,8 @@ export default function HuiswerkPage() {
   const [form, setForm] = useState({
     titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "",
   });
+  const [bijlage, setBijlage] = useState<{ naam: string; data: string; type: string } | null>(null);
+  const [bijlageLoading, setBijlageLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -141,6 +145,27 @@ export default function HuiswerkPage() {
     });
   };
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Bestand is te groot (max 5 MB).");
+      e.target.value = "";
+      return;
+    }
+    setBijlageLoading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      // dataUrl = "data:<mime>;base64,<data>"
+      const base64 = dataUrl.split(",")[1];
+      setBijlage({ naam: file.name, data: base64, type: file.type || "application/octet-stream" });
+      setBijlageLoading(false);
+    };
+    reader.onerror = () => { toast.error("Bestand lezen mislukt."); setBijlageLoading(false); };
+    reader.readAsDataURL(file);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.titel || !form.vakId) { toast.error("Titel en vak zijn verplicht."); return; }
@@ -152,6 +177,9 @@ export default function HuiswerkPage() {
         body: JSON.stringify({
           titel: form.titel, beschrijving: form.beschrijving || null,
           deadline: form.deadline || null, vakId: form.vakId, lesId: form.lesId || null,
+          bijlageNaam: bijlage?.naam ?? null,
+          bijlageData: bijlage?.data ?? null,
+          bijlageType: bijlage?.type ?? null,
         }),
       });
       const data = await res.json();
@@ -159,6 +187,7 @@ export default function HuiswerkPage() {
       toast.success("Huiswerk aangemaakt.");
       setHuiswerk((prev) => [data, ...prev]);
       setForm({ titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "" });
+      setBijlage(null);
       setShowForm(false);
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "Aanmaken mislukt."); }
     finally { setSaving(false); }
@@ -342,6 +371,38 @@ export default function HuiswerkPage() {
                     ))}
                   </select>
                 </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Paperclip className="inline h-3.5 w-3.5 mr-1" />
+                    Bijlage (optioneel, max 5 MB)
+                  </label>
+                  {bijlage ? (
+                    <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2">
+                      <Paperclip className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="text-sm text-green-800 flex-1 truncate">{bijlage.naam}</span>
+                      <button
+                        type="button"
+                        onClick={() => setBijlage(null)}
+                        className="text-green-600 hover:text-red-500 transition-colors"
+                      >
+                        <XIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="file"
+                        onChange={handleFileChange}
+                        disabled={bijlageLoading}
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp3,.mp4"
+                        className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-gray-300 rounded-md py-1.5 px-2"
+                      />
+                      {bijlageLoading && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-3">
                 <Button type="submit" disabled={saving} className="bg-green-700 hover:bg-green-800 text-white">
@@ -384,9 +445,20 @@ export default function HuiswerkPage() {
                         <p className="text-sm font-semibold text-gray-900">{hw.titel}</p>
                         <VakBadge categorie={hw.vak.categorie as VakCategorie} />
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                         {hw.deadline && <span>Deadline: {new Date(hw.deadline).toLocaleDateString("nl-NL")}</span>}
                         {hw.les && <span>Les: {new Date(hw.les.datum).toLocaleDateString("nl-NL")}</span>}
+                        {hw.hasBijlage && hw.bijlageNaam && (
+                          <a
+                            href={`/api/bijlage/${hw.id}`}
+                            download={hw.bijlageNaam}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 text-green-600 hover:text-green-800 transition-colors"
+                          >
+                            <Download className="h-3 w-3" />
+                            {hw.bijlageNaam}
+                          </a>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

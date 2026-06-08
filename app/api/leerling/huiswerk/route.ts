@@ -37,6 +37,8 @@ export async function GET() {
     beschrijving: h.beschrijving,
     deadline: h.deadline?.toISOString() ?? null,
     vak: { naam: h.vak.naam, categorie: h.vak.categorie },
+    bijlageNaam: h.bijlageNaam ?? null,
+    hasBijlage: !!h.bijlageNaam,
     ingeLeverd: h.inleveringen.length > 0,
     inlevering: h.inleveringen[0]
       ? {

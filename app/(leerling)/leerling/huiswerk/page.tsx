@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
-import { Loader2, CheckCircle, Clock, Trophy, MessageSquare } from "lucide-react";
+import { Loader2, CheckCircle, Clock, Trophy, MessageSquare, Download } from "lucide-react";
 import { useLang } from "@/contexts/LanguageContext";
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
@@ -14,6 +14,8 @@ interface HuiswerkItem {
   titel: string;
   beschrijving: string | null;
   deadline: string | null;
+  bijlageNaam: string | null;
+  hasBijlage: boolean;
   vak: { naam: string; categorie: VakCategorie };
   ingeLeverd: boolean;
   inlevering?: {
@@ -149,6 +151,16 @@ export default function HuiswerkPage() {
                   </div>
                   {hw.beschrijving && (
                     <p className="text-sm text-gray-500 mt-2">{hw.beschrijving}</p>
+                  )}
+                  {hw.hasBijlage && hw.bijlageNaam && (
+                    <a
+                      href={`/api/bijlage/${hw.id}`}
+                      download={hw.bijlageNaam}
+                      className="inline-flex items-center gap-1.5 text-xs text-green-700 hover:text-green-900 bg-green-50 border border-green-200 rounded px-2 py-1 mt-2 transition-colors"
+                    >
+                      <Download className="h-3 w-3" />
+                      {hw.bijlageNaam}
+                    </a>
                   )}
                   <p className="text-xs text-gray-400 mt-3 italic">
                     {t("huiswerk_docent_afvinkt")}

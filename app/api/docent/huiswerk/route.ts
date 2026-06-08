@@ -42,7 +42,13 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  return NextResponse.json(huiswerk);
+  // Strip bijlageData from list response to keep payload small
+  const result = huiswerk.map(({ bijlageData: _ignored, ...hw }) => ({
+    ...hw,
+    hasBijlage: !!hw.bijlageNaam,
+  }));
+
+  return NextResponse.json(result);
 }
 
 // POST /api/docent/huiswerk — create huiswerk
@@ -52,7 +58,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { titel, beschrijving, deadline, vakId, lesId } = await req.json();
+  const { titel, beschrijving, deadline, vakId, lesId, bijlageNaam, bijlageData, bijlageType } = await req.json();
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
@@ -66,6 +72,9 @@ export async function POST(req: NextRequest) {
         deadline: deadline ? new Date(deadline) : null,
         vakId,
         lesId: lesId || null,
+        bijlageNaam: bijlageNaam || null,
+        bijlageData: bijlageData || null,
+        bijlageType: bijlageType || null,
       },
       include: {
         vak: true,
@@ -75,7 +84,9 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    return NextResponse.json(hw, { status: 201 });
+    // Return without bijlageData to keep response small
+    const { bijlageData: _ignored, ...hwWithoutData } = hw as typeof hw & { bijlageData: string | null };
+    return NextResponse.json({ ...hwWithoutData, hasBijlage: !!hw.bijlageNaam }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Kon huiswerk niet aanmaken" }, { status: 500 });
   }

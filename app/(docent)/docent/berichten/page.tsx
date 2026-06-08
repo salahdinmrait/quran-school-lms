@@ -38,7 +38,6 @@ interface Klas {
   id: string;
   naam: string;
   leerlingen: { leerling: Leerling }[];
-  vakken: { vak: { id: string; naam: string } }[];
 }
 
 interface Les {
@@ -56,11 +55,10 @@ export default function BerichtenPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    doelType: "LEERLING" as "LEERLING" | "KLAS" | "VAK",
+    doelType: "LEERLING" as "LEERLING" | "KLAS",
     doelId: "",
     onderwerp: "",
     inhoud: "",
-    selectedKlasId: "",
   });
 
   useEffect(() => {
@@ -82,12 +80,10 @@ export default function BerichtenPage() {
   }
   const klassen = Array.from(klassenMap.values());
 
-  const selectedKlas = klassen.find((k) => k.id === form.selectedKlasId);
-
   // Options for doelId based on doelType
   function getDoelOpties() {
     if (form.doelType === "LEERLING") {
-      // All leerlingen from all klassen
+      // All leerlingen from all klassen (deduplicated)
       const leerlingenMap = new Map<string, Leerling>();
       for (const klas of klassen) {
         for (const { leerling } of klas.leerlingen) {
@@ -98,19 +94,6 @@ export default function BerichtenPage() {
     }
     if (form.doelType === "KLAS") {
       return klassen.map((k) => ({ id: k.id, label: k.naam }));
-    }
-    if (form.doelType === "VAK" && selectedKlas) {
-      return selectedKlas.vakken.map((kv) => ({ id: kv.vak.id, label: kv.vak.naam }));
-    }
-    if (form.doelType === "VAK") {
-      // All vakken from all klassen
-      const vakkenMap = new Map<string, { id: string; naam: string }>();
-      for (const klas of klassen) {
-        for (const { vak } of klas.vakken) {
-          vakkenMap.set(vak.id, vak);
-        }
-      }
-      return Array.from(vakkenMap.values()).map((v) => ({ id: v.id, label: v.naam }));
     }
     return [];
   }
@@ -147,7 +130,7 @@ export default function BerichtenPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       toast.success(`Bericht verstuurd naar ${data.count} ontvanger${data.count !== 1 ? "s" : ""}.`);
-      setForm({ doelType: "LEERLING", doelId: "", onderwerp: "", inhoud: "", selectedKlasId: "" });
+      setForm({ doelType: "LEERLING", doelId: "", onderwerp: "", inhoud: "" });
       setTab("inbox");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Versturen mislukt.");
@@ -323,7 +306,7 @@ export default function BerichtenPage() {
                     Sturen naar
                   </label>
                   <div className="flex gap-2">
-                    {(["LEERLING", "KLAS", "VAK"] as const).map((t) => (
+                    {(["LEERLING", "KLAS"] as const).map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -334,7 +317,7 @@ export default function BerichtenPage() {
                             : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
                         }`}
                       >
-                        {t === "LEERLING" ? "Specifieke leerling" : t === "KLAS" ? "Hele klas" : "Vak"}
+                        {t === "LEERLING" ? "Specifieke leerling" : "Hele klas"}
                       </button>
                     ))}
                   </div>
@@ -343,7 +326,7 @@ export default function BerichtenPage() {
                 {/* Doel */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {form.doelType === "LEERLING" ? "Leerling" : form.doelType === "KLAS" ? "Klas" : "Vak"}{" "}
+                    {form.doelType === "LEERLING" ? "Leerling" : "Klas"}{" "}
                     <span className="text-red-500">*</span>
                   </label>
                   <select

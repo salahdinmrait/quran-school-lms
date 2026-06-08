@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { School, BookOpen, Users } from "lucide-react";
+import { School, Users, Search } from "lucide-react";
+import { LeerlingZoekbalk } from "@/components/LeerlingZoekbalk";
 
 export default async function DocentDashboard() {
   const session = await auth();
@@ -59,6 +60,15 @@ export default async function DocentDashboard() {
             <div className="text-3xl font-bold">{leerlingenCount}</div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Student search */}
+      <div className="mb-8">
+        <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <Search className="h-4 w-4 text-gray-500" />
+          Leerling zoeken
+        </h2>
+        <LeerlingZoekbalk />
       </div>
 
       {/* Recent klassen */}
