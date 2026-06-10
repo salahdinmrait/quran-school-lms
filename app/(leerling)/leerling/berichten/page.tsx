@@ -10,6 +10,14 @@ import { formatDate } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 
+interface ThreadMessage {
+  id: string;
+  onderwerp: string;
+  inhoud: string;
+  createdAt: string;
+  verzender: { id: string; name: string; role: string };
+}
+
 interface Bericht {
   id: string;
   onderwerp: string;
@@ -17,6 +25,10 @@ interface Bericht {
   gelezen: boolean;
   createdAt: string;
   verzender: { id: string; name: string; role: string };
+  // Messages the leerling sent as replies to this bericht
+  replies: ThreadMessage[];
+  // The original message this bericht is a reply to (if any)
+  replyTo: ThreadMessage | null;
 }
 
 export default function BerichtenPage() {
@@ -26,7 +38,7 @@ export default function BerichtenPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Reply state
-  const [replyTo, setReplyTo] = useState<{ id: string; name: string; onderwerp: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ berichtId: string; verzenderId: string; naam: string; onderwerp: string } | null>(null);
   const [replyOnderwerp, setReplyOnderwerp] = useState("");
   const [replyInhoud, setReplyInhoud] = useState("");
   const [sending, setSending] = useState(false);
@@ -49,9 +61,15 @@ export default function BerichtenPage() {
   }
 
   function openReply(b: Bericht) {
-    setReplyTo({ id: b.verzender.id, name: b.verzender.name, onderwerp: b.onderwerp });
+    setReplyTo({
+      berichtId: b.id,
+      verzenderId: b.verzender.id,
+      naam: b.verzender.name,
+      onderwerp: b.onderwerp,
+    });
     setReplyOnderwerp(`Re: ${b.onderwerp}`);
     setReplyInhoud("");
+    setExpandedId(b.id);
   }
 
   async function handleReply(e: React.FormEvent) {
@@ -64,14 +82,32 @@ export default function BerichtenPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           doelType: "GEBRUIKERS",
-          doelIds: [replyTo.id],
+          doelIds: [replyTo.verzenderId],
           onderwerp: replyOnderwerp,
           inhoud: replyInhoud,
+          replyToId: replyTo.berichtId,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       toast.success("Antwoord verstuurd.");
+
+      // Optimistically add reply to the thread so leerling sees it immediately
+      const newReply: ThreadMessage = {
+        id: `temp-${Date.now()}`,
+        onderwerp: replyOnderwerp,
+        inhoud: replyInhoud,
+        createdAt: new Date().toISOString(),
+        verzender: { id: replyTo.verzenderId, name: "U", role: "LEERLING" },
+      };
+      setInbox((prev) =>
+        prev.map((b) =>
+          b.id === replyTo.berichtId
+            ? { ...b, replies: [...b.replies, newReply] }
+            : b
+        )
+      );
+
       setReplyTo(null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Versturen mislukt.");
@@ -102,52 +138,6 @@ export default function BerichtenPage() {
         </p>
       </div>
 
-      {/* Reply form */}
-      {replyTo && (
-        <Card className="mb-4 border-green-200 bg-green-50/40">
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-                <CornerDownLeft className="h-4 w-4 text-green-600" />
-                Antwoord aan <span className="font-semibold text-green-800">{replyTo.name}</span>
-              </p>
-              <button
-                onClick={() => setReplyTo(null)}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                Annuleren
-              </button>
-            </div>
-            <form onSubmit={handleReply} className="space-y-3">
-              <Input
-                value={replyOnderwerp}
-                onChange={(e) => setReplyOnderwerp(e.target.value)}
-                placeholder="Onderwerp"
-                required
-                className="bg-white"
-              />
-              <Textarea
-                value={replyInhoud}
-                onChange={(e) => setReplyInhoud(e.target.value)}
-                placeholder="Schrijf uw antwoord hier…"
-                rows={4}
-                required
-                className="bg-white"
-              />
-              <Button
-                type="submit"
-                disabled={sending}
-                size="sm"
-                className="bg-green-700 hover:bg-green-800 text-white"
-              >
-                {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
-                Versturen
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex items-center gap-2 mb-4 text-sm font-medium text-gray-700">
         <Inbox className="h-4 w-4" />
         {t("berichten_inbox")} ({inbox.length})
@@ -162,53 +152,131 @@ export default function BerichtenPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {inbox.map((b) => (
-            <Card key={b.id} className={b.gelezen ? "opacity-80" : ""}>
-              <CardContent className="py-3 px-4">
-                <button
-                  className="w-full text-left"
-                  onClick={() => {
-                    setExpandedId(expandedId === b.id ? null : b.id);
-                    if (!b.gelezen) markRead(b.id);
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {!b.gelezen && <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />}
-                      <p className={`text-sm truncate ${!b.gelezen ? "font-semibold text-gray-900" : "text-gray-700"}`}>
-                        {b.onderwerp}
-                      </p>
+          {inbox.map((b) => {
+            const isExpanded = expandedId === b.id;
+            const hasReplies = b.replies.length > 0;
+
+            return (
+              <Card key={b.id} className={b.gelezen ? "opacity-80" : ""}>
+                <CardContent className="py-3 px-4">
+                  {/* Header row — click to expand */}
+                  <button
+                    className="w-full text-left"
+                    onClick={() => {
+                      setExpandedId(isExpanded ? null : b.id);
+                      if (!b.gelezen) markRead(b.id);
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {!b.gelezen && <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />}
+                        <p className={`text-sm truncate ${!b.gelezen ? "font-semibold text-gray-900" : "text-gray-700"}`}>
+                          {b.onderwerp}
+                        </p>
+                        {hasReplies && !isExpanded && (
+                          <span className="shrink-0 text-xs bg-green-100 text-green-700 rounded-full px-1.5 py-0.5 font-medium">
+                            {b.replies.length} antwoord{b.replies.length !== 1 ? "en" : ""}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
+                        <span className="text-xs text-gray-500">{b.verzender.name}</span>
+                        {isExpanded
+                          ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                          : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
-                      <span className="text-xs text-gray-500">{b.verzender.name}</span>
-                      {expandedId === b.id
-                        ? <ChevronUp className="h-4 w-4 text-gray-400" />
-                        : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                  </button>
+
+                  {/* Expanded: full conversation thread */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-4">
+
+                      {/* Original message (this bericht) */}
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1.5">
+                          <span className="font-medium text-gray-600">{b.verzender.name}</span>
+                          {" · "}{formatDate(b.createdAt)}
+                        </p>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
+                      </div>
+
+                      {/* Replies already sent */}
+                      {b.replies.map((reply, idx) => (
+                        <div key={reply.id} className={`ml-4 pl-3 border-l-2 ${idx === b.replies.length - 1 ? "border-green-300" : "border-gray-200"}`}>
+                          <p className="text-xs text-gray-400 mb-1.5">
+                            <span className="font-medium text-green-700">U</span>
+                            {" · "}{formatDate(reply.createdAt)}
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{reply.inhoud}</p>
+                        </div>
+                      ))}
+
+                      {/* Reply button — only for DOCENT/ADMIN senders */}
+                      {(b.verzender.role === "DOCENT" || b.verzender.role === "ADMIN") && (
+                        <>
+                          {replyTo?.berichtId === b.id ? (
+                            /* Inline reply form */
+                            <div className="ml-4 pl-3 border-l-2 border-green-300">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-green-700 flex items-center gap-1">
+                                  <CornerDownLeft className="h-3.5 w-3.5" />
+                                  Antwoord aan {replyTo.naam}
+                                </p>
+                                <button
+                                  onClick={() => setReplyTo(null)}
+                                  className="text-xs text-gray-400 hover:text-gray-600"
+                                >
+                                  Annuleren
+                                </button>
+                              </div>
+                              <form onSubmit={handleReply} className="space-y-2">
+                                <Input
+                                  value={replyOnderwerp}
+                                  onChange={(e) => setReplyOnderwerp(e.target.value)}
+                                  placeholder="Onderwerp"
+                                  required
+                                  className="bg-white text-sm"
+                                />
+                                <Textarea
+                                  value={replyInhoud}
+                                  onChange={(e) => setReplyInhoud(e.target.value)}
+                                  placeholder="Schrijf uw antwoord hier…"
+                                  rows={3}
+                                  required
+                                  className="bg-white text-sm"
+                                />
+                                <Button
+                                  type="submit"
+                                  disabled={sending}
+                                  size="sm"
+                                  className="bg-green-700 hover:bg-green-800 text-white"
+                                >
+                                  {sending
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                    : <Send className="h-3.5 w-3.5 mr-1" />}
+                                  Versturen
+                                </Button>
+                              </form>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => openReply(b)}
+                              className="ml-4 flex items-center gap-1.5 text-xs text-green-700 hover:text-green-900 font-medium border border-green-200 bg-green-50 rounded px-2.5 py-1 transition-colors"
+                            >
+                              <CornerDownLeft className="h-3.5 w-3.5" />
+                              Beantwoorden
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
-                  </div>
-                </button>
-                {expandedId === b.id && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-400 mb-2">
-                      {t("berichten_van")}: <span className="font-medium">{b.verzender.name}</span> · {formatDate(b.createdAt)}
-                    </p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
-                    {/* Reply button: only for DOCENT/ADMIN senders */}
-                    {(b.verzender.role === "DOCENT" || b.verzender.role === "ADMIN") && (
-                      <button
-                        onClick={() => openReply(b)}
-                        className="mt-3 flex items-center gap-1.5 text-xs text-green-700 hover:text-green-900 font-medium border border-green-200 bg-green-50 rounded px-2.5 py-1 transition-colors"
-                      >
-                        <CornerDownLeft className="h-3.5 w-3.5" />
-                        Beantwoorden
-                      </button>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -2,12 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { MessageSquare, Send, Inbox, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { MessageSquare, Send, Inbox, ChevronDown, ChevronUp, Loader2, CornerDownRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/utils";
+
+interface ThreadMessage {
+  id: string;
+  onderwerp: string;
+  inhoud: string;
+  createdAt: string;
+  verzender: { id: string; name: string; role: string };
+}
 
 interface BerichtIn {
   id: string;
@@ -16,6 +24,11 @@ interface BerichtIn {
   gelezen: boolean;
   createdAt: string;
   verzender: { id: string; name: string; role: string };
+  // Replies this inbox message has received (e.g. leerling replied to docent's sent msg,
+  // and the reply now appears as a new inbox msg — but we still include replies on sent msgs)
+  replies: ThreadMessage[];
+  // Context: the original message this inbox message is a reply to
+  replyTo: ThreadMessage | null;
 }
 
 interface BerichtUit {
@@ -27,6 +40,8 @@ interface BerichtUit {
   doelLabel: string | null;
   aantalOntvangers: number;
   ontvanger: { id: string; name: string; role: string } | null;
+  // Replies received on this sent message
+  replies: ThreadMessage[];
 }
 
 interface Persoon { id: string; name: string; kindNaam?: string; }
@@ -56,14 +71,14 @@ export default function BerichtenPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/berichten").then((r) => r.json()),
-      fetch("/api/docent/klassen").then((r) => r.json()),
+      fetch("/api/berichten").then((r) => r.json()).catch(() => ({ inbox: [], verzonden: [] })),
+      fetch("/api/docent/klassen").then((r) => r.json()).catch(() => []),
     ]).then(([berichtData, klasData]) => {
       setInbox(berichtData.inbox ?? []);
       setVerzonden(berichtData.verzonden ?? []);
       setKlassen(Array.isArray(klasData) ? klasData : []);
       setIsFetching(false);
-    }).catch(() => setIsFetching(false));
+    });
   }, []);
 
   // All unique personen across klassen
@@ -174,77 +189,139 @@ export default function BerichtenPage() {
         ))}
       </div>
 
-      {/* Inbox */}
+      {/* ── Inbox ──────────────────────────────────────────────────────────── */}
       {tab === "inbox" && (
         <div className="space-y-2">
           {inbox.length === 0 ? (
             <Card><CardContent className="py-10 text-center text-gray-400 text-sm">Geen berichten in uw inbox.</CardContent></Card>
           ) : (
-            inbox.map((b) => (
-              <Card key={b.id} className={b.gelezen ? "opacity-70" : ""}>
-                <CardContent className="py-3 px-4">
-                  <button className="w-full text-left" onClick={() => { setExpandedId(expandedId === b.id ? null : b.id); if (!b.gelezen) markRead(b.id); }}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {!b.gelezen && <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />}
-                        <p className={`text-sm truncate ${!b.gelezen ? "font-semibold text-gray-900" : "text-gray-700"}`}>{b.onderwerp}</p>
+            inbox.map((b) => {
+              const isExpanded = expandedId === b.id;
+              return (
+                <Card key={b.id} className={b.gelezen ? "opacity-70" : ""}>
+                  <CardContent className="py-3 px-4">
+                    <button className="w-full text-left" onClick={() => { setExpandedId(isExpanded ? null : b.id); if (!b.gelezen) markRead(b.id); }}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {!b.gelezen && <span className="w-2 h-2 rounded-full bg-green-600 shrink-0" />}
+                          <p className={`text-sm truncate ${!b.gelezen ? "font-semibold text-gray-900" : "text-gray-700"}`}>{b.onderwerp}</p>
+                          {/* Badge if this is a reply (has context) */}
+                          {b.replyTo && (
+                            <span className="shrink-0 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-1.5 py-0.5">
+                              antwoord
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
+                          <span className="text-xs text-gray-500">{b.verzender.name}</span>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
-                        <span className="text-xs text-gray-500">{b.verzender.name}</span>
-                        {expandedId === b.id ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 space-y-4">
+
+                        {/* Show original message as context if this is a reply */}
+                        {b.replyTo && (
+                          <div className="bg-gray-50 rounded-md px-3 py-2.5 border border-gray-200">
+                            <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
+                              <CornerDownRight className="h-3 w-3" />
+                              Origineel bericht van <span className="font-medium text-gray-600">{b.replyTo.verzender.name}</span>
+                              {" · "}{formatDate(b.replyTo.createdAt)}
+                            </p>
+                            <p className="text-xs font-medium text-gray-600 mb-1">{b.replyTo.onderwerp}</p>
+                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{b.replyTo.inhoud}</p>
+                          </div>
+                        )}
+
+                        {/* The inbox message itself */}
+                        <div className={b.replyTo ? "ml-4 pl-3 border-l-2 border-blue-300" : ""}>
+                          <p className="text-xs text-gray-400 mb-1.5">
+                            <span className="font-medium text-gray-700">{b.verzender.name}</span>
+                            {" · "}{formatDate(b.createdAt)}
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                  {expandedId === b.id && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}
 
-      {/* Verzonden */}
+      {/* ── Verzonden ──────────────────────────────────────────────────────── */}
       {tab === "verzonden" && (
         <div className="space-y-2">
           {verzonden.length === 0 ? (
             <Card><CardContent className="py-10 text-center text-gray-400 text-sm">Geen verzonden berichten.</CardContent></Card>
           ) : (
-            verzonden.map((b) => (
-              <Card key={b.id}>
-                <CardContent className="py-3 px-4">
-                  <button className="w-full text-left" onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-gray-700 truncate">{b.onderwerp}</p>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
-                        <span className="text-xs text-gray-500">
-                          → {b.doelLabel ?? b.ontvanger?.name ?? "onbekend"}
-                          {b.aantalOntvangers > 1 && (
-                            <span className="ml-1 bg-gray-100 rounded-full px-1.5 py-0.5 text-gray-600">{b.aantalOntvangers}×</span>
+            verzonden.map((b) => {
+              const isExpanded = expandedId === b.id;
+              const hasReplies = b.replies.length > 0;
+              return (
+                <Card key={b.id} className={hasReplies ? "border-blue-200" : ""}>
+                  <CardContent className="py-3 px-4">
+                    <button className="w-full text-left" onClick={() => setExpandedId(isExpanded ? null : b.id)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-sm font-medium text-gray-700 truncate">{b.onderwerp}</p>
+                          {hasReplies && (
+                            <span className="shrink-0 text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-1.5 py-0.5 font-medium">
+                              {b.replies.length} antwoord{b.replies.length !== 1 ? "en" : ""}
+                            </span>
                           )}
-                        </span>
-                        {expandedId === b.id ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-gray-400">{formatDate(b.createdAt)}</span>
+                          <span className="text-xs text-gray-500">
+                            → {b.doelLabel ?? b.ontvanger?.name ?? "onbekend"}
+                            {b.aantalOntvangers > 1 && (
+                              <span className="ml-1 bg-gray-100 rounded-full px-1.5 py-0.5 text-gray-600">{b.aantalOntvangers}×</span>
+                            )}
+                          </span>
+                          {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                  {expandedId === b.id && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
+                    </button>
+
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 space-y-4">
+                        {/* The sent message */}
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1.5">
+                            <span className="font-medium text-gray-600">U</span>
+                            {" · "}{formatDate(b.createdAt)}
+                            {" · "}→ {b.doelLabel ?? b.ontvanger?.name ?? "onbekend"}
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{b.inhoud}</p>
+                        </div>
+
+                        {/* Replies received from leerlingen/ouders */}
+                        {b.replies.map((reply) => (
+                          <div key={reply.id} className="ml-4 pl-3 border-l-2 border-blue-300">
+                            <p className="text-xs text-gray-400 mb-1.5">
+                              <span className="font-medium text-blue-700">{reply.verzender.name}</span>
+                              {" · "}{formatDate(reply.createdAt)}
+                            </p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{reply.inhoud}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}
 
-      {/* Nieuw bericht */}
+      {/* ── Nieuw bericht ──────────────────────────────────────────────────── */}
       {tab === "nieuw" && (
         <Card>
           <CardHeader>

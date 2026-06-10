@@ -15,13 +15,31 @@ export async function GET() {
     prisma.bericht.findMany({
       where: { ontvangerId: userId },
       orderBy: { createdAt: "desc" },
-      include: { verzender: { select: { id: true, name: true, role: true } } },
+      include: {
+        verzender: { select: { id: true, name: true, role: true } },
+        // Replies sent by the inbox owner (e.g. leerling's own replies to this message)
+        replies: {
+          include: { verzender: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+        // Context: the original message this is a reply to (e.g. docent sees their own original)
+        replyTo: {
+          include: { verzender: { select: { id: true, name: true, role: true } } },
+        },
+      },
       take: 50,
     }),
     prisma.bericht.findMany({
       where: { verzenderId: userId },
       orderBy: { createdAt: "desc" },
-      include: { ontvanger: { select: { id: true, name: true, role: true } } },
+      include: {
+        ontvanger: { select: { id: true, name: true, role: true } },
+        // Replies received on sent messages (e.g. leerling replied to docent's sent message)
+        replies: {
+          include: { verzender: { select: { id: true, name: true, role: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     }),
   ]);
 
@@ -49,6 +67,7 @@ export async function GET() {
     doelLabel: bericht.doelLabel,
     aantalOntvangers: count,
     ontvanger: count === 1 ? bericht.ontvanger : null,
+    replies: bericht.replies ?? [],
   }));
 
   return NextResponse.json({ inbox: inboxRaw, verzonden });
@@ -83,7 +102,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { onderwerp, inhoud, doelType, doelId, doelIds } = await req.json();
+  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId } = await req.json();
 
   if (!onderwerp || !inhoud || !doelType) {
     return NextResponse.json(
@@ -197,6 +216,7 @@ export async function POST(req: NextRequest) {
             ontvangerId,
             groepId,
             doelLabel: groepId ? doelLabel : null,
+            replyToId: replyToId ?? null,
           },
         })
       )

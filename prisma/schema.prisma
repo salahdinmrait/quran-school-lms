@@ -161,17 +161,20 @@ model Inlevering {
 }
 
 model Bericht {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   onderwerp   String
   inhoud      String
-  gelezen     Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  gelezen     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
   groepId     String?
   doelLabel   String?
-  verzender   User     @relation("Verzender", fields: [verzenderId], references: [id])
+  replyToId   String?
+  verzender   User      @relation("Verzender", fields: [verzenderId], references: [id])
   verzenderId String
-  ontvanger   User     @relation("Ontvanger", fields: [ontvangerId], references: [id])
+  ontvanger   User      @relation("Ontvanger", fields: [ontvangerId], references: [id])
   ontvangerId String
+  replyTo     Bericht?  @relation("BerichtReplies", fields: [replyToId], references: [id])
+  replies     Bericht[] @relation("BerichtReplies")
 }
 
 // ── Ouder ↔ Kind koppeling ───────────────────────────────────────────────────
