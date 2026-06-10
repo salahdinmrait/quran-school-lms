@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // Strip bijlageData from list response to keep payload small
-  const result = huiswerk.map(({ bijlageData: _ignored, ...hw }) => ({
+  // Strip large bijlage fields from list response; client uses /api/bijlage/[id] to download
+  const result = huiswerk.map(({ bijlageData: _d, bijlageUrl: _u, ...hw }) => ({
     ...hw,
     hasBijlage: !!hw.bijlageNaam,
   }));
@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { titel, beschrijving, deadline, vakId, lesId, bijlageNaam, bijlageData, bijlageType } = await req.json();
+  const { titel, beschrijving, deadline, vakId, lesId,
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
@@ -73,7 +74,8 @@ export async function POST(req: NextRequest) {
         vakId,
         lesId: lesId || null,
         bijlageNaam: bijlageNaam || null,
-        bijlageData: bijlageData || null,
+        bijlageUrl:  bijlageUrl  || null,   // Vercel Blob URL (preferred)
+        bijlageData: bijlageData || null,   // legacy base64 fallback
         bijlageType: bijlageType || null,
       },
       include: {
@@ -84,9 +86,9 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    // Return without bijlageData to keep response small
-    const { bijlageData: _ignored, ...hwWithoutData } = hw as typeof hw & { bijlageData: string | null };
-    return NextResponse.json({ ...hwWithoutData, hasBijlage: !!hw.bijlageNaam }, { status: 201 });
+    // Strip large blob fields from response; download uses /api/bijlage/[id]
+    const { bijlageData: _d, bijlageUrl: _u, ...hwOut } = hw as typeof hw & { bijlageData: string | null; bijlageUrl: string | null };
+    return NextResponse.json({ ...hwOut, hasBijlage: !!hw.bijlageNaam }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/docent/huiswerk]", err);
     return NextResponse.json({ error: "Kon huiswerk niet aanmaken" }, { status: 500 });

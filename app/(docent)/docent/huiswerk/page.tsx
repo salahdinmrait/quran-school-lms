@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import {
   BookOpen, Plus, Trash2, Loader2, ChevronDown, ChevronUp,
   CheckSquare, Square, Users, Trophy, MessageSquare, Save, Paperclip, Download, X as XIcon,
+  Film, Music, Image as ImageIcon, FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,8 +77,10 @@ export default function HuiswerkPage() {
   const [form, setForm] = useState({
     titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "",
   });
-  const [bijlage, setBijlage] = useState<{ naam: string; data: string; type: string } | null>(null);
+  // Bijlage: after Vercel Blob upload we store the public URL
+  const [bijlage, setBijlage] = useState<{ naam: string; url: string; type: string } | null>(null);
   const [bijlageLoading, setBijlageLoading] = useState(false);
+  const [bijlageProgress, setBijlageProgress] = useState(0);
   const [klassenFetchError, setKlassenFetchError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,25 +170,34 @@ export default function HuiswerkPage() {
     });
   };
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Bestand is te groot (max 5 MB).");
+
+    // Sanity cap: Vercel Blob supports up to 500 MB; warn for very large files
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("Bestand is te groot (max 500 MB).");
       e.target.value = "";
       return;
     }
+
     setBijlageLoading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      // dataUrl = "data:<mime>;base64,<data>"
-      const base64 = dataUrl.split(",")[1];
-      setBijlage({ naam: file.name, data: base64, type: file.type || "application/octet-stream" });
+    setBijlageProgress(0);
+
+    try {
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+        onUploadProgress: ({ percentage }) => setBijlageProgress(percentage),
+      });
+      setBijlage({ naam: file.name, url: blob.url, type: file.type || "application/octet-stream" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Upload mislukt. Controleer of Vercel Blob is geconfigureerd.");
+    } finally {
       setBijlageLoading(false);
-    };
-    reader.onerror = () => { toast.error("Bestand lezen mislukt."); setBijlageLoading(false); };
-    reader.readAsDataURL(file);
+      setBijlageProgress(0);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -199,7 +212,7 @@ export default function HuiswerkPage() {
           titel: form.titel, beschrijving: form.beschrijving || null,
           deadline: form.deadline || null, vakId: form.vakId, lesId: form.lesId || null,
           bijlageNaam: bijlage?.naam ?? null,
-          bijlageData: bijlage?.data ?? null,
+          bijlageUrl:  bijlage?.url  ?? null,
           bijlageType: bijlage?.type ?? null,
         }),
       });
@@ -209,6 +222,7 @@ export default function HuiswerkPage() {
       setHuiswerk((prev) => [data, ...prev]);
       setForm({ titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "" });
       setBijlage(null);
+      setBijlageProgress(0);
       setShowForm(false);
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "Aanmaken mislukt."); }
     finally { setSaving(false); }
@@ -407,12 +421,19 @@ export default function HuiswerkPage() {
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Paperclip className="inline h-3.5 w-3.5 mr-1" />
-                    Bijlage (optioneel, max 5 MB)
+                    Bijlage (optioneel · video, audio, foto, PDF · max 500 MB)
                   </label>
                   {bijlage ? (
+                    /* Uploaded — show file info */
                     <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2">
-                      <Paperclip className="h-4 w-4 text-green-600 shrink-0" />
+                      {bijlage.type.startsWith("video/") && <Film className="h-4 w-4 text-green-600 shrink-0" />}
+                      {bijlage.type.startsWith("audio/") && <Music className="h-4 w-4 text-green-600 shrink-0" />}
+                      {bijlage.type.startsWith("image/") && <ImageIcon className="h-4 w-4 text-green-600 shrink-0" />}
+                      {!bijlage.type.startsWith("video/") && !bijlage.type.startsWith("audio/") && !bijlage.type.startsWith("image/") && (
+                        <FileText className="h-4 w-4 text-green-600 shrink-0" />
+                      )}
                       <span className="text-sm text-green-800 flex-1 truncate">{bijlage.naam}</span>
+                      <span className="text-xs text-green-600 shrink-0">✓ geüpload</span>
                       <button
                         type="button"
                         onClick={() => setBijlage(null)}
@@ -421,19 +442,28 @@ export default function HuiswerkPage() {
                         <XIcon className="h-4 w-4" />
                       </button>
                     </div>
-                  ) : (
-                    <div className="relative">
-                      <input
-                        type="file"
-                        onChange={handleFileChange}
-                        disabled={bijlageLoading}
-                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp3,.mp4"
-                        className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-gray-300 rounded-md py-1.5 px-2"
-                      />
-                      {bijlageLoading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-                      )}
+                  ) : bijlageLoading ? (
+                    /* Uploading — show progress bar */
+                    <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-green-600 shrink-0" />
+                        <span className="text-sm text-gray-600">Uploaden… {bijlageProgress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className="bg-green-600 h-1.5 rounded-full transition-all duration-200"
+                          style={{ width: `${bijlageProgress}%` }}
+                        />
+                      </div>
                     </div>
+                  ) : (
+                    /* File picker */
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                      className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-gray-300 rounded-md py-1.5 px-2"
+                    />
                   )}
                 </div>
               </div>

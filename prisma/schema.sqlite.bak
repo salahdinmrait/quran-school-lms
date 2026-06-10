@@ -133,10 +133,11 @@ model Huiswerk {
   titel        String
   beschrijving String?
   deadline     DateTime?
-  // Optional file attachment (base64-encoded)
+  // Optional file attachment
   bijlageNaam  String?
-  bijlageData  String?
-  bijlageType  String?
+  bijlageUrl   String?      // Vercel Blob public URL (preferred for new uploads)
+  bijlageData  String?      // base64-encoded content (legacy fallback)
+  bijlageType  String?      // MIME type
   vak          Vak          @relation(fields: [vakId], references: [id])
   vakId        String
   les          Les?         @relation(fields: [lesId], references: [id])
