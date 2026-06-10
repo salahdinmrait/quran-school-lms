@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
       },
     });
     return NextResponse.json(bericht, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("[POST /api/ouder/berichten]", err);
     return NextResponse.json({ error: "Versturen mislukt" }, { status: 500 });
   }
 }

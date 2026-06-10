@@ -222,7 +222,8 @@ export async function POST(req: NextRequest) {
       )
     );
     return NextResponse.json({ count: berichten.length }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("[POST /api/berichten]", err);
     return NextResponse.json({ error: "Kon bericht niet versturen" }, { status: 500 });
   }
 }

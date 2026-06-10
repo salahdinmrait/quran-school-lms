@@ -87,7 +87,8 @@ export async function POST(req: NextRequest) {
     // Return without bijlageData to keep response small
     const { bijlageData: _ignored, ...hwWithoutData } = hw as typeof hw & { bijlageData: string | null };
     return NextResponse.json({ ...hwWithoutData, hasBijlage: !!hw.bijlageNaam }, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("[POST /api/docent/huiswerk]", err);
     return NextResponse.json({ error: "Kon huiswerk niet aanmaken" }, { status: 500 });
   }
 }
