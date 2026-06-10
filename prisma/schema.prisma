@@ -11,6 +11,25 @@ datasource db {
   // directUrl = env("DIRECT_URL")  // uncomment if using Neon connection pooling
 }
 
+// ── School (multi-tenant) ────────────────────────────────────────────────────
+// Elke school is een eigen omgeving; gebruikers/klassen/vakken horen bij één school.
+// schoolId is nullable zodat bestaande (single-school) data blijft werken.
+model School {
+  id              String   @id @default(cuid())
+  naam            String
+  slug            String   @unique
+  plaats          String?
+  adres           String?
+  contactEmail    String?
+  contactTelefoon String?
+  actief          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  gebruikers User[]
+  klassen    Klas[]
+  vakken     Vak[]
+}
+
 // Rollen: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER"
 model User {
   id        String   @id @default(cuid())
@@ -20,6 +39,8 @@ model User {
   role      String   @default("LEERLING")
   actief    Boolean  @default(true)
   createdAt DateTime @default(now())
+  school    School?  @relation(fields: [schoolId], references: [id])
+  schoolId  String?
 
   docentKlassen      KlasDocent[]
   leerlingKlassen    KlasLeerling[]
@@ -39,6 +60,8 @@ model Klas {
   naam         String
   beschrijving String?
   createdAt    DateTime @default(now())
+  school       School?  @relation(fields: [schoolId], references: [id])
+  schoolId     String?
 
   docenten   KlasDocent[]
   leerlingen KlasLeerling[]
@@ -53,6 +76,8 @@ model Vak {
   beschrijving String?
   categorie    String
   createdAt    DateTime @default(now())
+  school       School?  @relation(fields: [schoolId], references: [id])
+  schoolId     String?
 
   klassen  KlasVak[]
   cijfers  Cijfer[]

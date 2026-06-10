@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/docent/huiswerk[?lesId=xxx] — huiswerk for docent's klassen

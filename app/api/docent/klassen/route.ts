@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/docent/klassen — klassen for the logged-in docent (with leerlingen + ouders)

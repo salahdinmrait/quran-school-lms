@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/ouder/koppeling?ouderId=xxx — get linked children for an ouder (admin only)

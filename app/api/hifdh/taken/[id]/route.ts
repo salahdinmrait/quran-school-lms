@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { nextPositionAfterTask, buildTaakData, reshuffleTakenFrom } from "@/lib/hifdh-utils";
 import { SURAHS } from "@/lib/quran";

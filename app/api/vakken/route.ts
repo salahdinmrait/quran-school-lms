@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { vakSchema } from "@/lib/validations";
 
@@ -11,6 +11,7 @@ export async function GET() {
 
   try {
     const vakken = await prisma.vak.findMany({
+      where: { schoolId: session.user.schoolId ?? null },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
         naam: parsed.data.naam,
         categorie: parsed.data.categorie,
         beschrijving: parsed.data.beschrijving ?? null,
+        schoolId: session.user.schoolId ?? null,
       },
     });
 

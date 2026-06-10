@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/admin/berichten-data — all klassen with leerlingen + ouders (ADMIN only)
@@ -10,6 +10,7 @@ export async function GET() {
   }
 
   const klassen = await prisma.klas.findMany({
+    where: { schoolId: session.user.schoolId ?? null },
     orderBy: { naam: "asc" },
     include: {
       leerlingen: {

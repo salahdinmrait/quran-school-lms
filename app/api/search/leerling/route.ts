@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/search/leerling?q=naam
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const leerlingWhere = {
     role: "LEERLING",
     actief: true,
+    schoolId: session.user.schoolId ?? null,
     name: { contains: q, mode: "insensitive" as const },
     ...(isAdmin ? {} : {
       leerlingKlassen: {

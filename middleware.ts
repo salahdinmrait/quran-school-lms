@@ -1,9 +1,21 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { expectedDevToken, DEV_COOKIE } from "@/lib/dev-token";
 
-export default auth((req) => {
+export default auth(async (req) => {
   const { nextUrl, auth: session } = req;
   const pathname = nextUrl.pathname;
+
+  // Developer console — own cookie-based auth, separate from NextAuth
+  if (pathname === "/dev" || pathname.startsWith("/dev/")) {
+    if (pathname === "/dev/login") return NextResponse.next();
+    const expected = await expectedDevToken();
+    const cookieVal = req.cookies.get(DEV_COOKIE)?.value;
+    if (!expected || cookieVal !== expected) {
+      return NextResponse.redirect(new URL("/dev/login", req.url));
+    }
+    return NextResponse.next();
+  }
 
   // Public routes
   if (pathname === "/login" || pathname.startsWith("/login/") || pathname === "/") {

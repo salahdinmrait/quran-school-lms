@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { klasSchema } from "@/lib/validations";
 
@@ -8,6 +8,7 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
   const klassen = await prisma.klas.findMany({
+    where: { schoolId: session.user.schoolId ?? null },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { leerlingen: true, docenten: true, vakken: true } } },
   });
@@ -26,7 +27,11 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: "Validatiefout" }, { status: 400 });
 
     const klas = await prisma.klas.create({
-      data: { naam: parsed.data.naam, beschrijving: parsed.data.beschrijving ?? null },
+      data: {
+        naam: parsed.data.naam,
+        beschrijving: parsed.data.beschrijving ?? null,
+        schoolId: session.user.schoolId ?? null,
+      },
     });
     return NextResponse.json(klas, { status: 201 });
   } catch {

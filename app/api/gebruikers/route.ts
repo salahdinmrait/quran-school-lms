@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { z } from "zod";
@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
   const roleFilter = searchParams.get("role");
 
   const gebruikers = await prisma.user.findMany({
-    where: roleFilter ? { role: roleFilter } : undefined,
+    where: {
+      schoolId: session.user.schoolId ?? null,
+      ...(roleFilter ? { role: roleFilter } : {}),
+    },
     orderBy: { name: "asc" },
     select: { id: true, name: true, email: true, role: true, actief: true, createdAt: true },
   });
@@ -55,6 +58,7 @@ export async function POST(req: NextRequest) {
         email: parsed.data.email,
         password: hashedPassword,
         role: parsed.data.role,
+        schoolId: session.user.schoolId ?? null,
       },
     });
 
