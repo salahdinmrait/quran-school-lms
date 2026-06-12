@@ -35,12 +35,9 @@ html.font-arabic button {
   font-family: var(--font-arabic), "Noto Sans Arabic", "Segoe UI", sans-serif;
 }
 
-/* Tailwind v4 — visible text in form elements (in @layer base so
-   utility classes like text-slate-100 can still override it) */
-@layer base {
-  input, textarea, select {
-    color: #111827;
-  }
+/* Tailwind v4 — visible text in form elements */
+input, textarea, select {
+  color: #111827;
 }
 
 * {

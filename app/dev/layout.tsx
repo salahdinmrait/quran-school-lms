@@ -3,8 +3,10 @@ import Link from "next/link";
 export const metadata = { title: "Developer Console — QuranMagister" };
 
 export default function DevLayout({ children }: { children: React.ReactNode }) {
+  // Inline color wins over the global `* { color: inherit }` reset,
+  // so text is readable on this page's dark background.
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100" style={{ color: "#e2e8f0" }}>
       <header className="border-b border-slate-800 bg-slate-900">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <Link href="/dev" className="font-semibold tracking-tight">
