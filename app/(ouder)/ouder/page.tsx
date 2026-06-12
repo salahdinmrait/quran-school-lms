@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, BookOpen, UserCheck, Star, TrendingUp, Calendar } from "lucide-react";
+import { Loader2, UserCheck, Star, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
@@ -16,16 +16,10 @@ interface Cijfer {
   id: string; waarde: number; vak: { naam: string };
 }
 
-interface HifdhProfiel {
-  huidigeSurahNr: number; huidigeAyahNr: number; ayaatPerWeek: number;
-  taken: { voltooid: boolean }[];
-}
-
 interface Leerling {
   id: string; name: string; email: string;
   aanwezigheid: Aanwezigheid[];
   cijfers: Cijfer[];
-  hifdhProfiel: HifdhProfiel | null;
   leerlingKlassen: { klas: { naam: string } }[];
 }
 
@@ -78,8 +72,6 @@ export default function OuderDashboardPage() {
         const gemiddeld = kind.cijfers.length > 0
           ? (kind.cijfers.reduce((s, c) => s + c.waarde, 0) / kind.cijfers.length).toFixed(1)
           : "—";
-        const hifdhTaken = kind.hifdhProfiel?.taken ?? [];
-        const hifdhVoltooide = hifdhTaken.filter((t) => t.voltooid).length;
 
         return (
           <div key={kind.id} className="space-y-4">
@@ -93,7 +85,7 @@ export default function OuderDashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <Card className="border-green-200">
                 <CardContent className="p-4 text-center">
                   <UserCheck className="h-6 w-6 text-green-600 mx-auto mb-1" />
@@ -108,14 +100,6 @@ export default function OuderDashboardPage() {
                   <Star className="h-6 w-6 text-blue-600 mx-auto mb-1" />
                   <p className="text-xl font-bold text-blue-700">{gemiddeld}</p>
                   <p className="text-xs text-gray-500">{t("ouder_gemiddeld_cijfer")}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-amber-200">
-                <CardContent className="p-4 text-center">
-                  <BookOpen className="h-6 w-6 text-amber-600 mx-auto mb-1" />
-                  <p className="text-xl font-bold text-amber-700">{hifdhVoltooide}/{hifdhTaken.length}</p>
-                  <p className="text-xs text-gray-500">{t("ouder_hifdh_taken")}</p>
                 </CardContent>
               </Card>
 
@@ -159,9 +143,6 @@ export default function OuderDashboardPage() {
             <div className="flex flex-wrap gap-2">
               <Link href="/ouder/voortgang" className="text-xs text-green-700 hover:underline px-3 py-1.5 bg-green-50 rounded-full border border-green-200">
                 → {t("ouder_voortgang")}
-              </Link>
-              <Link href="/ouder/hifdh" className="text-xs text-blue-700 hover:underline px-3 py-1.5 bg-blue-50 rounded-full border border-blue-200">
-                → {t("nav_hifdh")}
               </Link>
               <Link href="/ouder/rooster" className="text-xs text-purple-700 hover:underline px-3 py-1.5 bg-purple-50 rounded-full border border-purple-200">
                 → {t("ouder_aankomende_lessen")}

@@ -87,11 +87,6 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 - Eigen lessen (gegroepeerd op datum), **les aanmaken** voor eigen klassen — zelfde velden als admin inclusief **wekelijks herhalen tot einddatum** — en **les verwijderen**
 - Op de site: per les ook het gekoppelde huiswerk bekijken en direct huiswerk aan die les toevoegen
 
-### Hifdh (memorisatie)
-- **Traject starten per leerling**: start-surah + start-ayah + tempo (ayaat per week) + opmerkingen → het systeem genereert automatisch **6 weken aan weektaken** met bijbehorend huiswerk
-- Weektaken **aftekenen** naarmate de leerling vordert; de voortgang (huidige surah/ayah) loopt automatisch mee
-- Tempo en instellingen zijn later bij te stellen
-
 ### Berichten
 - Identiek aan admin, behalve: geen "docenten"-doel, en alleen **eigen klassen** als bereik (leerlingen/ouders van de eigen klassen)
 
@@ -105,7 +100,6 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 - **Cijfers**: alle cijfers met vak, datum en omschrijving
 - **Rooster**: eigen lessen met tijd en lokaal
 - **Absentie**: eigen aanwezigheidshistorie per les
-- **Hifdh**: eigen traject — huidige positie, weektaken en wat is afgetekend
 - **Berichten**: ⚠️ kan **niet zelf een gesprek beginnen** — alleen **reageren** op berichten van docent/admin. De volledige thread (origineel + alle reacties) is voor beide kanten zichtbaar
 
 ---
@@ -116,7 +110,6 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 - **Voortgang**: cijfers en aanwezigheidsoverzicht van het kind
 - **Huiswerk meevolgen**: alle opgaven met status (open/afgerond), deadlines, bijlagen én de opmerkingen die de docent bij het kind schreef
 - **Rooster**: de lessen van het kind
-- **Hifdh**: het memorisatietraject van het kind
 - **Berichten**: kan zelf **gesprekken beginnen met de docenten van het kind**, ontvangt klas-/oudersberichten van docent en admin, en kan overal op reageren
 - Alles is read-only: een ouder kan niets wijzigen, alleen volgen en communiceren
 

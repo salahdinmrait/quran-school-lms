@@ -192,42 +192,12 @@ async function main() {
   await prisma.cijfer.createMany({ data: cijferData });
   console.log(`  ✓ Cijfers aangemaakt: ${cijferData.length}`);
 
-  // ── 7. Hifdh profielen voor eerste 5 leerlingen per klas ────────────────────
-  const { createTakenForProfiel } = await import("../lib/hifdh-utils");
-
-  let hifdhProfielen = 0;
-  for (const klas of klassen) {
-    const firstFive = klas.leerlingen.slice(0, 5);
-    for (let idx = 0; idx < firstFive.length; idx++) {
-      const leerling = firstFive[idx].leerling;
-      const startSurah = 114 - idx;
-      const existing = await prisma.hifdhProfiel.findUnique({ where: { leerlingId: leerling.id } });
-      if (existing) continue;
-
-      const profiel = await prisma.hifdhProfiel.create({
-        data: {
-          leerlingId: leerling.id,
-          startSurahNr: startSurah,
-          startAyahNr: 1,
-          huidigeSurahNr: startSurah,
-          huidigeAyahNr: 1,
-          ayaatPerWeek: 5,
-        },
-      });
-
-      await createTakenForProfiel(profiel.id);
-      hifdhProfielen++;
-    }
-  }
-  console.log(`  ✓ Hifdh-profielen aangemaakt: ${hifdhProfielen} (elk met 6 weken taken)`);
-
   console.log("\n✅  Demo data klaar!\n");
   console.log("  Lessen:      " + lessenCreated.length);
   console.log("  Huiswerk:    " + huiswerkItems.length);
   console.log("  Afgevinkt:   " + inleveringData.length + " inleveringen");
   console.log("  Absentie:    " + aanwezigheidData.length + " records");
   console.log("  Cijfers:     " + cijferData.length);
-  console.log("  Hifdh:       " + hifdhProfielen + " profielen\n");
 }
 
 main()

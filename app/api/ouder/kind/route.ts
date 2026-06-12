@@ -46,9 +46,6 @@ export async function GET() {
             include: { vak: true },
             take: 20,
           },
-          hifdhProfiel: {
-            include: { taken: { orderBy: { weekStart: "asc" } } },
-          },
           aanwezigheid: {
             orderBy: { les: { datum: "desc" } },
             take: 20,
