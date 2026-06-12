@@ -21,7 +21,7 @@ export async function GET() {
             },
           },
         }
-      : {};
+      : { leerling: { schoolId: session.user.schoolId ?? null } };
 
   const profielen = await prisma.hifdhProfiel.findMany({
     where,
@@ -46,6 +46,27 @@ export async function POST(req: NextRequest) {
   const { leerlingId, startSurahNr, startAyahNr, ayaatPerWeek, opmerkingen } = await req.json();
   if (!leerlingId || !startSurahNr) {
     return NextResponse.json({ error: "leerlingId en startSurahNr zijn verplicht" }, { status: 400 });
+  }
+
+  // Toegangscontrole: admin alleen eigen school, docent alleen eigen leerlingen
+  if (session.user.role === "ADMIN") {
+    const leerling = await prisma.user.findUnique({
+      where: { id: leerlingId },
+      select: { schoolId: true },
+    });
+    if (!leerling || leerling.schoolId !== (session.user.schoolId ?? null)) {
+      return NextResponse.json({ error: "Leerling niet gevonden" }, { status: 404 });
+    }
+  } else {
+    const link = await prisma.klasLeerling.findFirst({
+      where: {
+        leerlingId,
+        klas: { docenten: { some: { docentId: session.user.id } } },
+      },
+    });
+    if (!link) {
+      return NextResponse.json({ error: "Geen toegang tot deze leerling" }, { status: 403 });
+    }
   }
 
   try {

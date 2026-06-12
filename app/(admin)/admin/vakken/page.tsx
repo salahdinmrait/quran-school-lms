@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VakkenTabel } from "@/components/vakken/VakkenTabel";
 
 export default async function VakkenPage() {
+  const session = await auth();
   const vakken = await prisma.vak.findMany({
+    where: { schoolId: session?.user?.schoolId ?? null },
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { klassen: true } },

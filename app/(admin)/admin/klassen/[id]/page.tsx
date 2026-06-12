@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
@@ -11,6 +12,8 @@ interface Props {
 
 export default async function KlasDetailPage({ params }: Props) {
   const { id } = await params;
+  const session = await auth();
+  const schoolId = session?.user?.schoolId ?? null;
 
   const [klas, alleLeerlingen, alleDocenten, alleVakken] = await Promise.all([
     prisma.klas.findUnique({
@@ -21,12 +24,12 @@ export default async function KlasDetailPage({ params }: Props) {
         vakken: { include: { vak: true } },
       },
     }),
-    prisma.user.findMany({ where: { role: "LEERLING", actief: true }, orderBy: { name: "asc" } }),
-    prisma.user.findMany({ where: { role: "DOCENT", actief: true }, orderBy: { name: "asc" } }),
-    prisma.vak.findMany({ orderBy: { naam: "asc" } }),
+    prisma.user.findMany({ where: { role: "LEERLING", actief: true, schoolId }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ where: { role: "DOCENT", actief: true, schoolId }, orderBy: { name: "asc" } }),
+    prisma.vak.findMany({ where: { schoolId }, orderBy: { naam: "asc" } }),
   ]);
 
-  if (!klas) notFound();
+  if (!klas || klas.schoolId !== schoolId) notFound();
 
   return (
     <div className="p-6 max-w-5xl">

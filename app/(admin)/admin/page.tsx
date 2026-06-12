@@ -6,12 +6,13 @@ import { LeerlingZoekbalk } from "@/components/LeerlingZoekbalk";
 
 export default async function AdminDashboard() {
   const session = await auth();
+  const schoolId = session?.user?.schoolId ?? null;
 
   const [totalLeerlingen, totalDocenten, totalKlassen, totalVakken] = await Promise.all([
-    prisma.user.count({ where: { role: "LEERLING", actief: true } }),
-    prisma.user.count({ where: { role: "DOCENT", actief: true } }),
-    prisma.klas.count(),
-    prisma.vak.count(),
+    prisma.user.count({ where: { role: "LEERLING", actief: true, schoolId } }),
+    prisma.user.count({ where: { role: "DOCENT", actief: true, schoolId } }),
+    prisma.klas.count({ where: { schoolId } }),
+    prisma.vak.count({ where: { schoolId } }),
   ]);
 
   const stats = [

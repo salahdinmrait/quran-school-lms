@@ -48,12 +48,13 @@ interface Klas {
   ouders: Persoon[];
 }
 
-type DoelType = "LEERLINGEN" | "KLAS_LEERLINGEN" | "OUDERS" | "KLAS_OUDERS";
+type DoelType = "LEERLINGEN" | "KLAS_LEERLINGEN" | "OUDERS" | "KLAS_OUDERS" | "DOCENTEN";
 
 export default function AdminBerichtenPage() {
   const [inbox, setInbox] = useState<BerichtIn[]>([]);
   const [verzonden, setVerzonden] = useState<BerichtUit[]>([]);
   const [klassen, setKlassen] = useState<Klas[]>([]);
+  const [docenten, setDocenten] = useState<Persoon[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [tab, setTab] = useState<"inbox" | "verzonden" | "nieuw">("inbox");
   const [sending, setSending] = useState(false);
@@ -72,7 +73,9 @@ export default function AdminBerichtenPage() {
     ]).then(([berichtData, klasData]) => {
       setInbox(berichtData.inbox ?? []);
       setVerzonden(berichtData.verzonden ?? []);
-      setKlassen(Array.isArray(klasData) ? klasData : []);
+      // Nieuw formaat: { klassen, docenten } — oud formaat was een array
+      setKlassen(Array.isArray(klasData) ? klasData : klasData?.klassen ?? []);
+      setDocenten(Array.isArray(klasData) ? [] : klasData?.docenten ?? []);
       setIsFetching(false);
     }).catch(() => setIsFetching(false));
   }, []);
@@ -89,7 +92,8 @@ export default function AdminBerichtenPage() {
 
   const allePersonen =
     doelType === "LEERLINGEN" ? getAllPersonen("leerlingen") :
-    doelType === "OUDERS" ? getAllPersonen("ouders") : [];
+    doelType === "OUDERS" ? getAllPersonen("ouders") :
+    doelType === "DOCENTEN" ? docenten : [];
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) =>
@@ -155,6 +159,7 @@ export default function AdminBerichtenPage() {
     { value: "KLAS_LEERLINGEN", label: "Hele klas (leerlingen)" },
     { value: "OUDERS", label: "Specifieke ouder(s)" },
     { value: "KLAS_OUDERS", label: "Alle ouders van een klas" },
+    { value: "DOCENTEN", label: "Specifieke docent(en)" },
   ];
 
   return (
@@ -362,11 +367,11 @@ export default function AdminBerichtenPage() {
               )}
 
               {/* Multi-select personen */}
-              {(doelType === "LEERLINGEN" || doelType === "OUDERS") && (
+              {(doelType === "LEERLINGEN" || doelType === "OUDERS" || doelType === "DOCENTEN") && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-sm font-medium text-gray-700">
-                      {doelType === "LEERLINGEN" ? "Leerling(en)" : "Ouder(s)"}
+                      {doelType === "LEERLINGEN" ? "Leerling(en)" : doelType === "OUDERS" ? "Ouder(s)" : "Docent(en)"}
                       <span className="text-red-500 ml-0.5">*</span>
                       {selectedIds.length > 0 && (
                         <span className="ml-2 text-green-700 font-normal">({selectedIds.length} geselecteerd)</span>
@@ -379,7 +384,11 @@ export default function AdminBerichtenPage() {
                   </div>
                   {allePersonen.length === 0 ? (
                     <p className="text-sm text-amber-600">
-                      {doelType === "OUDERS" ? "Geen ouders gevonden (koppel ouders aan leerlingen)." : "Geen leerlingen gevonden."}
+                      {doelType === "OUDERS"
+                        ? "Geen ouders gevonden (koppel ouders aan leerlingen)."
+                        : doelType === "DOCENTEN"
+                        ? "Geen docenten gevonden."
+                        : "Geen leerlingen gevonden."}
                     </p>
                   ) : (
                     <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 divide-y divide-gray-100">

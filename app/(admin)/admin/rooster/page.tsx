@@ -1,13 +1,18 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import RoosterClient from "./RoosterClient";
 
 export default async function RoosterPage() {
+  const session = await auth();
+  const schoolId = session?.user?.schoolId ?? null;
+
   const [lessen, klassen] = await Promise.all([
     prisma.les.findMany({
+      where: { klas: { schoolId } },
       orderBy: [{ datum: "asc" }, { begintijd: "asc" }],
       include: { klas: true },
     }),
-    prisma.klas.findMany({ orderBy: { naam: "asc" } }),
+    prisma.klas.findMany({ where: { schoolId }, orderBy: { naam: "asc" } }),
   ]);
 
   return (

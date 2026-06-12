@@ -41,6 +41,11 @@ export async function PUT(
 
   const { id } = await params;
 
+  const bestaand = await prisma.vak.findUnique({ where: { id }, select: { schoolId: true } });
+  if (!bestaand || bestaand.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Vak niet gevonden" }, { status: 404 });
+  }
+
   try {
     const body = await req.json();
     const parsed = vakSchema.safeParse(body);
@@ -77,6 +82,11 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const bestaand = await prisma.vak.findUnique({ where: { id }, select: { schoolId: true } });
+  if (!bestaand || bestaand.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Vak niet gevonden" }, { status: 404 });
+  }
 
   try {
     // Controleer of het vak gekoppeld is aan klassen

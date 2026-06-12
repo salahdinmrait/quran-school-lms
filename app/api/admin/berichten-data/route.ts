@@ -2,34 +2,42 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/admin/berichten-data — all klassen with leerlingen + ouders (ADMIN only)
+// GET /api/admin/berichten-data — klassen met leerlingen + ouders, plus alle
+// docenten van de school (ADMIN only)
 export async function GET() {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const klassen = await prisma.klas.findMany({
-    where: { schoolId: session.user.schoolId ?? null },
-    orderBy: { naam: "asc" },
-    include: {
-      leerlingen: {
-        include: {
-          leerling: {
-            select: {
-              id: true,
-              name: true,
-              kindVan: {
-                select: {
-                  ouder: { select: { id: true, name: true } },
+  const [klassen, docenten] = await Promise.all([
+    prisma.klas.findMany({
+      where: { schoolId: session.user.schoolId ?? null },
+      orderBy: { naam: "asc" },
+      include: {
+        leerlingen: {
+          include: {
+            leerling: {
+              select: {
+                id: true,
+                name: true,
+                kindVan: {
+                  select: {
+                    ouder: { select: { id: true, name: true } },
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findMany({
+      where: { schoolId: session.user.schoolId ?? null, role: "DOCENT", actief: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   const result = klassen.map((klas) => ({
     id: klas.id,
@@ -53,5 +61,5 @@ export async function GET() {
     ),
   }));
 
-  return NextResponse.json(result);
+  return NextResponse.json({ klassen: result, docenten });
 }

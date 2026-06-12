@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { klasBehoortTotSchool } from "@/lib/school-scope";
 
 export async function POST(
   req: NextRequest,
@@ -12,10 +13,18 @@ export async function POST(
   }
 
   const { id: klasId } = await params;
+  if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
+    return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+  }
   const { vakId } = await req.json();
 
   if (!vakId) {
     return NextResponse.json({ error: "vakId vereist" }, { status: 400 });
+  }
+
+  const vak = await prisma.vak.findUnique({ where: { id: vakId }, select: { schoolId: true } });
+  if (!vak || vak.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Vak niet gevonden" }, { status: 404 });
   }
 
   try {
@@ -40,6 +49,9 @@ export async function DELETE(
   }
 
   const { id: klasId } = await params;
+  if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
+    return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+  }
   const { vakId } = await req.json();
 
   try {

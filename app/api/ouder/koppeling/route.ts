@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { userBehoortTotSchool } from "@/lib/school-scope";
 
 // GET /api/ouder/koppeling?ouderId=xxx — get linked children for an ouder (admin only)
 export async function GET(req: NextRequest) {
@@ -13,6 +14,9 @@ export async function GET(req: NextRequest) {
   const ouderId = searchParams.get("ouderId");
   if (!ouderId) {
     return NextResponse.json({ error: "ouderId is verplicht" }, { status: 400 });
+  }
+  if (!(await userBehoortTotSchool(ouderId, session.user.schoolId ?? null))) {
+    return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
   }
 
   const koppelingen = await prisma.ouderLeerling.findMany({
@@ -36,6 +40,14 @@ export async function POST(req: NextRequest) {
   const { ouderId, leerlingId } = await req.json();
   if (!ouderId || !leerlingId) {
     return NextResponse.json({ error: "ouderId en leerlingId zijn verplicht" }, { status: 400 });
+  }
+
+  const schoolId = session.user.schoolId ?? null;
+  if (
+    !(await userBehoortTotSchool(ouderId, schoolId)) ||
+    !(await userBehoortTotSchool(leerlingId, schoolId))
+  ) {
+    return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
   }
 
   try {

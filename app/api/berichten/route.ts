@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     }
 
     const users = await prisma.user.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, schoolId: session.user.schoolId ?? null },
       select: { id: true, name: true, role: true },
     });
 
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
       where: { id: doelId },
       include: { leerlingen: { select: { leerlingId: true } } },
     });
-    if (!klas) {
+    if (!klas || klas.schoolId !== (session.user.schoolId ?? null)) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
     }
     ontvangerIds = klas.leerlingen.map((kl) => kl.leerlingId);
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    if (!klas) {
+    if (!klas || klas.schoolId !== (session.user.schoolId ?? null)) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
     }
     const ouderIds = new Set<string>();

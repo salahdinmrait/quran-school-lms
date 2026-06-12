@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import GebruikersClient from "./GebruikersClient";
 
 export default async function GebruikersPage() {
+  const session = await auth();
   const gebruikers = await prisma.user.findMany({
+    where: { schoolId: session?.user?.schoolId ?? null },
     orderBy: { createdAt: "desc" },
     select: { id: true, name: true, email: true, role: true, actief: true, createdAt: true },
   });

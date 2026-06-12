@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, School, BookOpen, GraduationCap, BarChart3, CalendarCheck, TrendingUp, ClipboardList } from "lucide-react";
 import { VakBadge } from "@/components/vakken/VakBadge";
 
 export default async function StatistiekenPage() {
+  const session = await auth();
+  const schoolId = session?.user?.schoolId ?? null;
+
   const [
     totalLeerlingen,
     totalDocenten,
@@ -12,12 +16,13 @@ export default async function StatistiekenPage() {
     vakkenPerCategorie,
     klassen,
   ] = await Promise.all([
-    prisma.user.count({ where: { role: "LEERLING", actief: true } }),
-    prisma.user.count({ where: { role: "DOCENT", actief: true } }),
-    prisma.klas.count(),
-    prisma.vak.count(),
-    prisma.vak.groupBy({ by: ["categorie"], _count: { id: true } }),
+    prisma.user.count({ where: { role: "LEERLING", actief: true, schoolId } }),
+    prisma.user.count({ where: { role: "DOCENT", actief: true, schoolId } }),
+    prisma.klas.count({ where: { schoolId } }),
+    prisma.vak.count({ where: { schoolId } }),
+    prisma.vak.groupBy({ by: ["categorie"], where: { schoolId }, _count: { id: true } }),
     prisma.klas.findMany({
+      where: { schoolId },
       orderBy: { naam: "asc" },
       include: {
         leerlingen: { select: { leerlingId: true } },

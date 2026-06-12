@@ -1,11 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import KlassenClient from "./KlassenClient";
 
 export default async function KlassenPage() {
+  const session = await auth();
   const klassen = await prisma.klas.findMany({
+    where: { schoolId: session?.user?.schoolId ?? null },
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { leerlingen: true, docenten: true, vakken: true } },

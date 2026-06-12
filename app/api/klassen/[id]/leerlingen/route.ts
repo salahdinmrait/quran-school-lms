@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { klasBehoortTotSchool } from "@/lib/school-scope";
 
 // POST: één of meerdere leerlingen toevoegen aan klas
 // Body: { leerlingId: string } OR { leerlingIds: string[] }
@@ -14,6 +15,9 @@ export async function POST(
   }
 
   const { id: klasId } = await params;
+  if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
+    return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+  }
   const body = await req.json();
 
   // Support both single and bulk
@@ -32,7 +36,11 @@ export async function POST(
   for (const leerlingId of ids) {
     try {
       const leerling = await prisma.user.findUnique({ where: { id: leerlingId } });
-      if (!leerling || leerling.role !== "LEERLING") {
+      if (
+        !leerling ||
+        leerling.role !== "LEERLING" ||
+        leerling.schoolId !== (session.user.schoolId ?? null)
+      ) {
         results.fouten++;
         continue;
       }
@@ -62,6 +70,9 @@ export async function DELETE(
   }
 
   const { id: klasId } = await params;
+  if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
+    return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+  }
   const { leerlingId } = await req.json();
 
   try {

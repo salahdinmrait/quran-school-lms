@@ -19,7 +19,7 @@ export async function GET() {
   const where =
     session.user.role === "DOCENT"
       ? { klas: { docenten: { some: { docentId: session.user.id } } } }
-      : {};
+      : { klas: { schoolId: session.user.schoolId ?? null } };
 
   const lessen = await prisma.les.findMany({
     where,
@@ -50,12 +50,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Docent may only add lessen to their own klassen
+  // Docent may only add lessen to their own klassen; admin only within their school
   if (session.user.role === "DOCENT") {
     const link = await prisma.klasDocent.findFirst({
       where: { klasId, docentId: session.user.id },
     });
     if (!link) {
+      return NextResponse.json({ error: "Geen toegang tot deze klas" }, { status: 403 });
+    }
+  } else {
+    const klas = await prisma.klas.findUnique({ where: { id: klasId } });
+    if (!klas || klas.schoolId !== (session.user.schoolId ?? null)) {
       return NextResponse.json({ error: "Geen toegang tot deze klas" }, { status: 403 });
     }
   }

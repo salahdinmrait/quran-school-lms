@@ -24,11 +24,14 @@ export async function GET(
   const { id } = await params;
   const gebruiker = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, name: true, email: true, role: true, actief: true },
+    select: { id: true, name: true, email: true, role: true, actief: true, schoolId: true },
   });
 
-  if (!gebruiker) return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
-  return NextResponse.json(gebruiker);
+  if (!gebruiker || gebruiker.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
+  }
+  const { schoolId: _s, ...out } = gebruiker;
+  return NextResponse.json(out);
 }
 
 export async function DELETE(
@@ -45,6 +48,11 @@ export async function DELETE(
   // Prevent deleting yourself
   if (id === session.user.id) {
     return NextResponse.json({ error: "U kunt uw eigen account niet verwijderen" }, { status: 400 });
+  }
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { schoolId: true } });
+  if (!target || target.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
   }
 
   try {
@@ -65,6 +73,11 @@ export async function PUT(
   }
 
   const { id } = await params;
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { schoolId: true } });
+  if (!target || target.schoolId !== (session.user.schoolId ?? null)) {
+    return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
+  }
 
   try {
     const body = await req.json();
