@@ -30,7 +30,8 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json(lessen);
+  const result = lessen.map(({ bijlageData: _d, ...l }) => ({ ...l, hasBijlage: !!l.bijlageNaam }));
+  return NextResponse.json(result);
 }
 
 // POST /api/lessen — create lesson(s); admin + docent (own klassen only)
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { klasId, vakId, datum, begintijd, eindtijd, lokaal, herhalen } = await req.json();
+  const { klasId, vakId, datum, begintijd, eindtijd, lokaal, herhalen,
+          beschrijving, bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!klasId || !datum || !begintijd || !eindtijd) {
     return NextResponse.json(
@@ -90,6 +92,12 @@ export async function POST(req: NextRequest) {
             begintijd,
             eindtijd,
             lokaal: lokaal || null,
+            beschrijving: beschrijving || null,
+            // Bijlage alleen op de eerste les bij herhaling (anders dupliceert grote data)
+            bijlageNaam: bijlageNaam || null,
+            bijlageUrl: bijlageUrl || null,
+            bijlageData: bijlageData || null,
+            bijlageType: bijlageType || null,
           },
           include: {
             klas: klasInclude,

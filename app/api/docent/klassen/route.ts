@@ -38,29 +38,33 @@ export async function GET() {
     },
   });
 
-  const klassen = klasDocenten.map(({ klas }) => ({
-    id: klas.id,
-    naam: klas.naam,
-    vakken: klas.vakken.map((kv) => ({ id: kv.vak.id, naam: kv.vak.naam, categorie: kv.vak.categorie })),
-    leerlingen: klas.leerlingen.map(({ leerling }) => ({
-      id: leerling.id,
-      name: leerling.name,
-    })),
-    // Deduplicated ouders across all leerlingen in this klas
-    ouders: Array.from(
-      new Map(
-        klas.leerlingen
-          .flatMap(({ leerling }) =>
-            leerling.kindVan.map(({ ouder }) => ({
-              id: ouder.id,
-              name: ouder.name,
-              kindNaam: leerling.name,
-            }))
-          )
-          .map((o) => [o.id, o])
-      ).values()
-    ),
-  }));
+  const klassen = klasDocenten.map(({ klas }) => {
+    // Ouders dedupliceren, maar ALLE kinderen per ouder verzamelen (niet alleen de eerste)
+    const ouderMap = new Map<string, { id: string; name: string; kinderen: string[] }>();
+    for (const { leerling } of klas.leerlingen) {
+      for (const { ouder } of leerling.kindVan) {
+        const bestaand = ouderMap.get(ouder.id);
+        if (bestaand) {
+          if (!bestaand.kinderen.includes(leerling.name)) bestaand.kinderen.push(leerling.name);
+        } else {
+          ouderMap.set(ouder.id, { id: ouder.id, name: ouder.name, kinderen: [leerling.name] });
+        }
+      }
+    }
+
+    return {
+      id: klas.id,
+      naam: klas.naam,
+      vakken: klas.vakken.map((kv) => ({ id: kv.vak.id, naam: kv.vak.naam, categorie: kv.vak.categorie })),
+      leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name })),
+      ouders: Array.from(ouderMap.values()).map((o) => ({
+        id: o.id,
+        name: o.name,
+        kinderen: o.kinderen,
+        kindNaam: o.kinderen.join(", "), // backwards-compat: alle kinderen samengevoegd
+      })),
+    };
+  });
 
   return NextResponse.json(klassen);
 }

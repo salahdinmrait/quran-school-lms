@@ -11,7 +11,7 @@ export async function GET() {
 
   const ouderId = session.user.id;
 
-  const [inbox, verzonden] = await Promise.all([
+  const [inbox, verzonden, admins] = await Promise.all([
     prisma.bericht.findMany({
       where: { ontvangerId: ouderId },
       orderBy: { createdAt: "desc" },
@@ -22,9 +22,14 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       include: { ontvanger: { select: { id: true, name: true, role: true } } },
     }),
+    prisma.user.findMany({
+      where: { role: "ADMIN", actief: true, schoolId: session.user.schoolId ?? null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
-  return NextResponse.json({ inbox, verzonden });
+  return NextResponse.json({ inbox, verzonden, admins });
 }
 
 // POST /api/ouder/berichten — parent sends message to a docent
@@ -39,22 +44,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Alle velden zijn verplicht" }, { status: 400 });
   }
 
-  // Verify recipient is a docent who teaches their child
-  const kind = await prisma.ouderLeerling.findFirst({
-    where: {
-      ouderId: session.user.id,
-      leerling: {
-        leerlingKlassen: {
-          some: {
-            klas: { docenten: { some: { docentId: ontvangerId } } },
+  // Ontvanger mag een docent van het kind zijn, OF een admin van de school
+  const [docentVanKind, adminVanSchool] = await Promise.all([
+    prisma.ouderLeerling.findFirst({
+      where: {
+        ouderId: session.user.id,
+        leerling: {
+          leerlingKlassen: {
+            some: {
+              klas: { docenten: { some: { docentId: ontvangerId } } },
+            },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findFirst({
+      where: { id: ontvangerId, role: "ADMIN", schoolId: session.user.schoolId ?? null },
+    }),
+  ]);
 
-  if (!kind) {
-    return NextResponse.json({ error: "U kunt alleen berichten sturen aan docenten van uw kind" }, { status: 403 });
+  if (!docentVanKind && !adminVanSchool) {
+    return NextResponse.json(
+      { error: "Je kunt alleen berichten sturen aan docenten van je kind of het beheer" },
+      { status: 403 }
+    );
   }
 
   try {

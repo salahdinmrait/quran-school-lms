@@ -14,5 +14,7 @@ export async function GET() {
     include: { vak: { select: { id: true, naam: true, categorie: true } } },
   });
 
-  return NextResponse.json(cijfers);
+  // Strip grote base64; expose hasBijlage (download via /api/attachment/cijfer/[id])
+  const result = cijfers.map(({ bijlageData: _d, ...c }) => ({ ...c, hasBijlage: !!c.bijlageNaam }));
+  return NextResponse.json(result);
 }

@@ -13,6 +13,7 @@ declare module "next-auth" {
       email: string;
       role: Role;
       schoolId: string | null;
+      isVolwassen: boolean;
     };
   }
 
@@ -22,6 +23,7 @@ declare module "next-auth" {
     email: string;
     role: Role;
     schoolId: string | null;
+    isVolwassen: boolean;
   }
 }
 
@@ -42,6 +44,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id;
         token.role = user.role as Role;
         token.schoolId = user.schoolId ?? null;
+        token.isVolwassen = user.isVolwassen ?? false;
       }
       return token;
     },
@@ -50,6 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         session.user.role = token.role as Role;
         session.user.schoolId = (token.schoolId as string | null) ?? null;
+        session.user.isVolwassen = (token.isVolwassen as boolean) ?? false;
       }
       return session;
     },
@@ -89,6 +93,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           role: user.role as Role,
           schoolId: user.schoolId ?? null,
+          isVolwassen: user.isVolwassen ?? false,
         };
       },
     }),

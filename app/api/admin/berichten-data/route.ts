@@ -39,27 +39,30 @@ export async function GET() {
     }),
   ]);
 
-  const result = klassen.map((klas) => ({
-    id: klas.id,
-    naam: klas.naam,
-    leerlingen: klas.leerlingen.map(({ leerling }) => ({
-      id: leerling.id,
-      name: leerling.name,
-    })),
-    ouders: Array.from(
-      new Map(
-        klas.leerlingen
-          .flatMap(({ leerling }) =>
-            leerling.kindVan.map(({ ouder }) => ({
-              id: ouder.id,
-              name: ouder.name,
-              kindNaam: leerling.name,
-            }))
-          )
-          .map((o) => [o.id, o])
-      ).values()
-    ),
-  }));
+  const result = klassen.map((klas) => {
+    const ouderMap = new Map<string, { id: string; name: string; kinderen: string[] }>();
+    for (const { leerling } of klas.leerlingen) {
+      for (const { ouder } of leerling.kindVan) {
+        const bestaand = ouderMap.get(ouder.id);
+        if (bestaand) {
+          if (!bestaand.kinderen.includes(leerling.name)) bestaand.kinderen.push(leerling.name);
+        } else {
+          ouderMap.set(ouder.id, { id: ouder.id, name: ouder.name, kinderen: [leerling.name] });
+        }
+      }
+    }
+    return {
+      id: klas.id,
+      naam: klas.naam,
+      leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name })),
+      ouders: Array.from(ouderMap.values()).map((o) => ({
+        id: o.id,
+        name: o.name,
+        kinderen: o.kinderen,
+        kindNaam: o.kinderen.join(", "),
+      })),
+    };
+  });
 
   return NextResponse.json({ klassen: result, docenten });
 }

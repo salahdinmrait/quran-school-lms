@@ -56,5 +56,14 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json(koppelingen.map((k) => k.leerling));
+  // Strip grote base64 uit cijfer-bijlagen
+  return NextResponse.json(
+    koppelingen.map((k) => ({
+      ...k.leerling,
+      cijfers: k.leerling.cijfers.map(({ bijlageData: _d, ...c }) => ({
+        ...c,
+        hasBijlage: !!c.bijlageNaam,
+      })),
+    }))
+  );
 }

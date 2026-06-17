@@ -25,6 +25,7 @@ const schema = z.object({
   email: z.string().email("Ongeldig e-mailadres"),
   password: z.string().min(8, "Wachtwoord moet minimaal 8 tekens bevatten"),
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
+  isVolwassen: z.boolean().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -45,6 +46,7 @@ export default function NieuweGebruikerPage() {
   });
 
   const selectedRole = watch("role");
+  const isVolwassen = watch("isVolwassen");
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
@@ -124,6 +126,24 @@ export default function NieuweGebruikerPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedRole === "LEERLING" && (
+              <label className="flex items-start gap-2 rounded-md border border-gray-200 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!isVolwassen}
+                  onChange={(e) => setValue("isVolwassen", e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-green-700 focus:ring-green-500"
+                />
+                <span className="text-sm text-gray-700">
+                  <span className="font-medium">18+ zonder ouder-account</span>
+                  <br />
+                  <span className="text-xs text-gray-500">
+                    Een zelfstandige leerling van 18 jaar of ouder mag zelf gesprekken starten met docenten en het beheer.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={isLoading}>

@@ -39,13 +39,19 @@ export async function GET(req: NextRequest) {
           leerling: { select: { id: true, name: true } },
         },
       },
+      // Optionele specifieke doel-leerlingen (leeg = hele vak/klas)
+      doelLeerlingen: { include: { leerling: { select: { id: true, name: true } } } },
     },
   });
 
-  // Strip large bijlage fields from list response; client uses /api/bijlage/[id] to download
-  const result = huiswerk.map(({ bijlageData: _d, bijlageUrl: _u, ...hw }) => ({
+  // Strip large bijlage fields; expose hasBijlage. Idem voor inlevering-bijlagen.
+  const result = huiswerk.map(({ bijlageData: _d, inleveringen, ...hw }) => ({
     ...hw,
     hasBijlage: !!hw.bijlageNaam,
+    inleveringen: inleveringen.map(({ bijlageData: _id, ...inv }) => ({
+      ...inv,
+      hasBijlage: !!inv.bijlageNaam,
+    })),
   }));
 
   return NextResponse.json(result);
@@ -58,12 +64,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { titel, beschrijving, deadline, vakId, lesId,
+  const { titel, beschrijving, deadline, vakId, lesId, leerlingIds,
           bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
   }
+
+  // Optioneel gericht op specifieke leerlingen
+  const doelIds: string[] = Array.isArray(leerlingIds)
+    ? Array.from(new Set(leerlingIds.filter((x): x is string => typeof x === "string")))
+    : [];
 
   try {
     const hw = await prisma.huiswerk.create({
@@ -77,6 +88,9 @@ export async function POST(req: NextRequest) {
         bijlageUrl:  bijlageUrl  || null,   // Vercel Blob URL (preferred)
         bijlageData: bijlageData || null,   // legacy base64 fallback
         bijlageType: bijlageType || null,
+        ...(doelIds.length > 0
+          ? { doelLeerlingen: { create: doelIds.map((leerlingId) => ({ leerlingId })) } }
+          : {}),
       },
       include: {
         vak: true,
@@ -84,10 +98,11 @@ export async function POST(req: NextRequest) {
         inleveringen: {
           include: { leerling: { select: { id: true, name: true } } },
         },
+        doelLeerlingen: { include: { leerling: { select: { id: true, name: true } } } },
       },
     });
-    // Strip large blob fields from response; download uses /api/bijlage/[id]
-    const { bijlageData: _d, bijlageUrl: _u, ...hwOut } = hw as typeof hw & { bijlageData: string | null; bijlageUrl: string | null };
+    // Strip large blob fields from response; download uses /api/attachment/huiswerk/[id]
+    const { bijlageData: _d, ...hwOut } = hw as typeof hw & { bijlageData: string | null };
     return NextResponse.json({ ...hwOut, hasBijlage: !!hw.bijlageNaam }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/docent/huiswerk]", err);

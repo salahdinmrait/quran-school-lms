@@ -40,11 +40,12 @@ export default function RoosterClient({ lessen, klassen }: Props) {
     begintijd: "",
     eindtijd: "",
     lokaal: "",
+    beschrijving: "",
     herhalen: false,
     totDatum: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setForm((prev) => ({
       ...prev,
@@ -74,6 +75,7 @@ export default function RoosterClient({ lessen, klassen }: Props) {
         begintijd: form.begintijd,
         eindtijd: form.eindtijd,
         lokaal: form.lokaal || null,
+        beschrijving: form.beschrijving || null,
       };
       if (form.herhalen && form.totDatum) {
         body.herhalen = { totDatum: form.totDatum };
@@ -90,7 +92,7 @@ export default function RoosterClient({ lessen, klassen }: Props) {
           ? "Les aangemaakt."
           : `${data.count} herhalende lessen aangemaakt.`
       );
-      setForm({ klasId: "", datum: "", begintijd: "", eindtijd: "", lokaal: "", herhalen: false, totDatum: "" });
+      setForm({ klasId: "", datum: "", begintijd: "", eindtijd: "", lokaal: "", beschrijving: "", herhalen: false, totDatum: "" });
       setShowForm(false);
       router.refresh();
     } catch (e: unknown) {
@@ -181,6 +183,18 @@ export default function RoosterClient({ lessen, klassen }: Props) {
                   Eindtijd <span className="text-red-500">*</span>
                 </label>
                 <Input type="time" name="eindtijd" value={form.eindtijd} onChange={handleChange} required />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Omschrijving / opmerking</label>
+                <textarea
+                  name="beschrijving"
+                  value={form.beschrijving}
+                  onChange={handleChange}
+                  rows={2}
+                  placeholder="bijv. Neem soera Al-Mulk door voor deze les"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
               </div>
 
               {/* Repeating toggle */}

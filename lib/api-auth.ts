@@ -13,6 +13,7 @@ export type ApiSession = {
     email: string;
     role: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
     schoolId: string | null;
+    isVolwassen: boolean;
   };
 } | null;
 

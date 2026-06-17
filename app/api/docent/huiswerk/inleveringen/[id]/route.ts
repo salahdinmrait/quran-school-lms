@@ -57,7 +57,7 @@ export async function PUT(
   const berichtData = [
     // To the leerling
     {
-      onderwerp: `Opmerking op uw huiswerk: ${hwTitel}`,
+      onderwerp: `Opmerking op je huiswerk: ${hwTitel}`,
       inhoud: opmerking.trim(),
       verzenderId: docentId,
       ontvangerId: leerlingId,

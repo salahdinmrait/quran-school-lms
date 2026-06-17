@@ -25,6 +25,7 @@ const schema = z.object({
   email: z.string().email("Ongeldig e-mailadres"),
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
   actief: z.boolean(),
+  isVolwassen: z.boolean().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -58,6 +59,7 @@ export default function BewerkGebruikerPage() {
 
   const selectedRole = watch("role");
   const isActief = watch("actief");
+  const isVolwassen = watch("isVolwassen");
 
   // Load user info
   useEffect(() => {
@@ -68,6 +70,7 @@ export default function BewerkGebruikerPage() {
         setValue("email", data.email);
         setValue("role", data.role);
         setValue("actief", data.actief);
+        setValue("isVolwassen", !!data.isVolwassen);
         setUserName(data.name);
         setIsFetching(false);
       })
@@ -131,7 +134,7 @@ export default function BewerkGebruikerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: info.name, email: info.email, role: info.role, actief: info.actief,
-          nieuwWachtwoord,
+          isVolwassen: info.isVolwassen, nieuwWachtwoord,
         }),
       });
       if (!res.ok) {
@@ -258,6 +261,24 @@ export default function BewerkGebruikerPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedRole === "LEERLING" && (
+              <label className="flex items-start gap-2 rounded-md border border-gray-200 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!isVolwassen}
+                  onChange={(e) => setValue("isVolwassen", e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-green-700 focus:ring-green-500"
+                />
+                <span className="text-sm text-gray-700">
+                  <span className="font-medium">18+ zonder ouder-account</span>
+                  <br />
+                  <span className="text-xs text-gray-500">
+                    Mag zelf gesprekken starten met docenten en het beheer.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={isLoading}>

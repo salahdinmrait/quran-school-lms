@@ -58,6 +58,18 @@ export async function GET() {
     }
   }
 
+  // Strip large base64 bijlageData; expose hasBijlage + naam/type (download via /api/attachment)
+  const strip = <T extends { bijlageData?: string | null; bijlageNaam?: string | null }>(b: T) => {
+    const { bijlageData: _d, ...rest } = b as T & { bijlageData?: string | null };
+    return { ...rest, hasBijlage: !!b.bijlageNaam };
+  };
+
+  const inbox = inboxRaw.map((b) => ({
+    ...strip(b),
+    replies: (b.replies ?? []).map(strip),
+    replyTo: b.replyTo ? strip(b.replyTo) : null,
+  }));
+
   const verzonden = Array.from(verzondenMap.values()).map(({ bericht, count }) => ({
     id: bericht.id,
     groepId: bericht.groepId,
@@ -65,12 +77,15 @@ export async function GET() {
     inhoud: bericht.inhoud,
     createdAt: bericht.createdAt,
     doelLabel: bericht.doelLabel,
+    bijlageNaam: bericht.bijlageNaam,
+    bijlageType: bericht.bijlageType,
+    hasBijlage: !!bericht.bijlageNaam,
     aantalOntvangers: count,
     ontvanger: count === 1 ? bericht.ontvanger : null,
-    replies: bericht.replies ?? [],
+    replies: (bericht.replies ?? []).map(strip),
   }));
 
-  return NextResponse.json({ inbox: inboxRaw, verzonden });
+  return NextResponse.json({ inbox, verzonden });
 }
 
 /**
@@ -80,10 +95,12 @@ export async function GET() {
  *   "GEBRUIKERS"       — doelIds: string[]   (specific users, any role)
  *   "KLAS_LEERLINGEN"  — doelId: string      (all leerlingen in klas)
  *   "KLAS_OUDERS"      — doelId: string      (all ouders of leerlingen in klas)
+ *   "ADMINS"           — (geen doel)         (alle admins van de school)
  *
  * Role rules:
  *   ADMIN/DOCENT: all doelTypes allowed
- *   LEERLING: only "GEBRUIKERS" allowed, and only to DOCENT/ADMIN targets
+ *   LEERLING: alleen reageren (replyToId verplicht) naar DOCENT/ADMIN —
+ *             behalve 18+ (isVolwassen): die mag ook zelf een gesprek starten.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -102,12 +119,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId } = await req.json();
+  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId,
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!onderwerp || !inhoud || !doelType) {
     return NextResponse.json(
       { error: "onderwerp, inhoud en doelType zijn verplicht" },
       { status: 400 }
+    );
+  }
+
+  // Leerling-regel: alleen reageren (replyToId), tenzij 18+ → mag zelf starten.
+  const isLeerling = role === "LEERLING";
+  const leerlingMagInitieren = isLeerling && session.user.isVolwassen;
+  if (isLeerling && !replyToId && !leerlingMagInitieren) {
+    return NextResponse.json(
+      { error: "Leerlingen kunnen alleen reageren op een ontvangen bericht" },
+      { status: 403 }
     );
   }
 
@@ -189,9 +217,24 @@ export async function POST(req: NextRequest) {
     ontvangerIds = Array.from(ouderIds);
     doelLabel = `Ouders van klas ${klas.naam}`;
 
+  } else if (doelType === "ADMINS") {
+    // Docent of 18+-leerling stuurt naar het beheer (alle admins van de school)
+    if (isLeerling && !leerlingMagInitieren) {
+      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    }
+    const admins = await prisma.user.findMany({
+      where: { role: "ADMIN", actief: true, schoolId: session.user.schoolId ?? null },
+      select: { id: true },
+    });
+    ontvangerIds = admins.map((a) => a.id);
+    doelLabel = "Beheer";
+
   } else {
     return NextResponse.json({ error: "Ongeldig doelType" }, { status: 400 });
   }
+
+  // Dedup + stuur nooit naar jezelf (voorkomt o.a. "verstuurd naar 2" bij 1 keuze)
+  ontvangerIds = Array.from(new Set(ontvangerIds)).filter((id) => id !== verzenderId);
 
   if (ontvangerIds.length === 0) {
     return NextResponse.json(
@@ -217,6 +260,10 @@ export async function POST(req: NextRequest) {
             groepId,
             doelLabel: groepId ? doelLabel : null,
             replyToId: replyToId ?? null,
+            bijlageNaam: bijlageNaam ?? null,
+            bijlageUrl: bijlageUrl ?? null,
+            bijlageData: bijlageData ?? null,
+            bijlageType: bijlageType ?? null,
           },
         })
       )

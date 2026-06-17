@@ -39,3 +39,50 @@ export async function DELETE(
     return NextResponse.json({ error: "Verwijderen mislukt" }, { status: 500 });
   }
 }
+
+// PATCH /api/lessen/[id] — omschrijving/bijlage (en evt. tijden/lokaal) wijzigen
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "DOCENT")) {
+    return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const les = await prisma.les.findUnique({
+    where: { id },
+    include: { klas: { select: { schoolId: true, docenten: { select: { docentId: true } } } } },
+  });
+  if (!les) {
+    return NextResponse.json({ error: "Les niet gevonden" }, { status: 404 });
+  }
+  if (session.user.role === "ADMIN") {
+    if (les.klas.schoolId !== (session.user.schoolId ?? null)) {
+      return NextResponse.json({ error: "Geen toegang tot deze les" }, { status: 403 });
+    }
+  } else if (!les.klas.docenten.some((d) => d.docentId === session.user.id)) {
+    return NextResponse.json({ error: "Geen toegang tot deze les" }, { status: 403 });
+  }
+
+  const body = await req.json();
+  const data: Record<string, unknown> = {};
+  for (const f of ["begintijd", "eindtijd", "lokaal", "beschrijving"] as const) {
+    if (body[f] !== undefined) data[f] = body[f] || null;
+  }
+  if (body.bijlageNaam !== undefined) {
+    data.bijlageNaam = body.bijlageNaam || null;
+    data.bijlageUrl = body.bijlageUrl || null;
+    data.bijlageData = body.bijlageData || null;
+    data.bijlageType = body.bijlageType || null;
+  }
+
+  try {
+    const updated = await prisma.les.update({ where: { id }, data });
+    const { bijlageData: _d, ...out } = updated;
+    return NextResponse.json({ ...out, hasBijlage: !!updated.bijlageNaam });
+  } catch {
+    return NextResponse.json({ error: "Bijwerken mislukt" }, { status: 500 });
+  }
+}

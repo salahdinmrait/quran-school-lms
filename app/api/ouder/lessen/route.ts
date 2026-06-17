@@ -16,13 +16,13 @@ export async function GET() {
 
   const result = await Promise.all(
     koppelingen.map(async (k) => {
-      const lessen = await prisma.les.findMany({
+      const lessenRaw = await prisma.les.findMany({
         where: {
           klas: { leerlingen: { some: { leerlingId: k.leerlingId } } },
         },
         orderBy: [{ datum: "asc" }, { begintijd: "asc" }],
         include: {
-          klas: { select: { naam: true } },
+          klas: { select: { naam: true, docenten: { include: { docent: { select: { id: true, name: true } } } } } },
           vak: { select: { naam: true } },
           aanwezigheid: {
             where: { leerlingId: k.leerlingId },
@@ -30,6 +30,12 @@ export async function GET() {
           },
         },
       });
+
+      const lessen = lessenRaw.map(({ bijlageData: _d, ...les }) => ({
+        ...les,
+        hasBijlage: !!les.bijlageNaam,
+        docenten: les.klas.docenten.map((kd) => kd.docent),
+      }));
 
       return { kind: k.leerling, lessen };
     })

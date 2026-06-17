@@ -57,8 +57,8 @@ export default function OuderRoosterPage() {
       </div>
 
       {data.map(({ kind, lessen }) => {
-        const upcoming = lessen
-          .filter((l) => new Date(l.datum) >= now)
+        const upcoming = (lessen ?? [])
+          .filter((l) => l?.datum && new Date(l.datum) >= now)
           .sort((a, b) => a.datum.localeCompare(b.datum) || a.begintijd.localeCompare(b.begintijd))
           .slice(0, 20);
 
@@ -90,7 +90,7 @@ export default function OuderRoosterPage() {
                     </h3>
                     <div className="space-y-2">
                       {dagLessen.map((les) => {
-                        const aanw = les.aanwezigheid[0];
+                        const aanw = les.aanwezigheid?.[0];
                         return (
                           <Card key={les.id}>
                             <CardContent className="py-3 px-4">
@@ -100,7 +100,7 @@ export default function OuderRoosterPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900">
-                                    {les.klas.naam}{les.vak && ` — ${les.vak.naam}`}
+                                    {les.klas?.naam}{les.vak && ` — ${les.vak.naam}`}
                                   </p>
                                   <p className="text-xs text-gray-500">
                                     {les.begintijd} – {les.eindtijd}

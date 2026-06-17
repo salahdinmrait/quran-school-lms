@@ -31,7 +31,10 @@ export async function GET() {
           vak: { select: { naam: true, categorie: true } },
           inleveringen: {
             where: { leerlingId: k.leerlingId },
-            select: { inhoud: true, createdAt: true, opmerking: true },
+            select: {
+              inhoud: true, createdAt: true, opmerking: true, opmerkingOp: true,
+              bijlageNaam: true,
+            },
           },
         },
       });
@@ -44,8 +47,12 @@ export async function GET() {
           beschrijving: hw.beschrijving,
           deadline: hw.deadline,
           vak: hw.vak,
+          bijlageNaam: hw.bijlageNaam ?? null,
+          hasBijlage: !!hw.bijlageNaam,
           ingeLeverd: hw.inleveringen.length > 0,
-          inlevering: hw.inleveringen[0] ?? null,
+          inlevering: hw.inleveringen[0]
+            ? { ...hw.inleveringen[0], hasBijlage: !!hw.inleveringen[0].bijlageNaam }
+            : null,
         })),
       };
     })

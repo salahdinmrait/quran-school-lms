@@ -28,7 +28,9 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json(cijfers);
+  // Strip grote base64; expose hasBijlage (download via /api/attachment/cijfer/[id])
+  const result = cijfers.map(({ bijlageData: _d, ...c }) => ({ ...c, hasBijlage: !!c.bijlageNaam }));
+  return NextResponse.json(result);
 }
 
 // POST /api/docent/cijfers — create a cijfer
@@ -38,7 +40,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { leerlingId, vakId, waarde, omschrijving } = await req.json();
+  const { leerlingId, vakId, waarde, omschrijving, opmerking,
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!leerlingId || !vakId || waarde === undefined) {
     return NextResponse.json(
@@ -62,13 +65,20 @@ export async function POST(req: NextRequest) {
         vakId,
         waarde: num,
         omschrijving: omschrijving || null,
+        opmerking: opmerking || null,
+        opmerkingOp: opmerking ? new Date() : null,
+        bijlageNaam: bijlageNaam || null,
+        bijlageUrl: bijlageUrl || null,
+        bijlageData: bijlageData || null,
+        bijlageType: bijlageType || null,
       },
       include: {
         leerling: { select: { id: true, name: true } },
         vak: true,
       },
     });
-    return NextResponse.json(cijfer, { status: 201 });
+    const { bijlageData: _d, ...out } = cijfer;
+    return NextResponse.json({ ...out, hasBijlage: !!cijfer.bijlageNaam }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Kon cijfer niet opslaan" }, { status: 500 });
   }

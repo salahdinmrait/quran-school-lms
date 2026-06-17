@@ -11,6 +11,8 @@ datasource db {
 }
 
 // ── School (multi-tenant) ────────────────────────────────────────────────────
+// Elke school is een eigen omgeving; gebruikers/klassen/vakken horen bij één school.
+// schoolId is nullable zodat bestaande (single-school) data blijft werken.
 model School {
   id              String   @id @default(cuid())
   naam            String
@@ -35,6 +37,8 @@ model User {
   password  String
   role      String   @default("LEERLING")
   actief    Boolean  @default(true)
+  // 18+ zelfstandige leerling zonder ouder-account: mag zelf gesprekken starten
+  isVolwassen Boolean @default(false)
   createdAt DateTime @default(now())
   school    School?  @relation(fields: [schoolId], references: [id])
   schoolId  String?
@@ -50,6 +54,8 @@ model User {
   ouderVan           OuderLeerling[]     @relation("Ouder")
   kindVan            OuderLeerling[]     @relation("Kind")
   resetTokens        PasswordResetToken[]
+  studieMaterialen   StudieMateriaal[]
+  huiswerkDoelen     HuiswerkLeerling[]
 }
 
 model Klas {
@@ -60,10 +66,11 @@ model Klas {
   school       School?  @relation(fields: [schoolId], references: [id])
   schoolId     String?
 
-  docenten   KlasDocent[]
-  leerlingen KlasLeerling[]
-  vakken     KlasVak[]
-  lessen     Les[]
+  docenten         KlasDocent[]
+  leerlingen       KlasLeerling[]
+  vakken           KlasVak[]
+  lessen           Les[]
+  studieMaterialen StudieMateriaal[]
 }
 
 // Categorieën: "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG"
@@ -76,10 +83,11 @@ model Vak {
   school       School?  @relation(fields: [schoolId], references: [id])
   schoolId     String?
 
-  klassen  KlasVak[]
-  cijfers  Cijfer[]
-  huiswerk Huiswerk[]
-  lessen   Les[]
+  klassen          KlasVak[]
+  cijfers          Cijfer[]
+  huiswerk         Huiswerk[]
+  lessen           Les[]
+  studieMaterialen StudieMateriaal[]
 }
 
 model KlasVak {
@@ -113,27 +121,40 @@ model KlasLeerling {
 }
 
 model Cijfer {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   waarde       Float
   omschrijving String?
-  datum        DateTime @default(now())
-  vak          Vak      @relation(fields: [vakId], references: [id])
+  // Losse opmerking (los van de korte omschrijving) + optionele bijlage (bv. de toets)
+  opmerking    String?
+  opmerkingOp  DateTime?
+  bijlageNaam  String?
+  bijlageUrl   String?
+  bijlageData  String?
+  bijlageType  String?
+  datum        DateTime  @default(now())
+  vak          Vak       @relation(fields: [vakId], references: [id])
   vakId        String
-  leerling     User     @relation(fields: [leerlingId], references: [id])
+  leerling     User      @relation(fields: [leerlingId], references: [id])
   leerlingId   String
 }
 
 model Les {
-  id        String   @id @default(cuid())
-  datum     DateTime
-  begintijd String
-  eindtijd  String
-  lokaal    String?
-  klas      Klas     @relation(fields: [klasId], references: [id])
-  klasId    String
+  id           String   @id @default(cuid())
+  datum        DateTime
+  begintijd    String
+  eindtijd     String
+  lokaal       String?
+  // Omschrijving/opmerking voor de les (bv. "neem soera X door") + optionele bijlage
+  beschrijving String?
+  bijlageNaam  String?
+  bijlageUrl   String?
+  bijlageData  String?
+  bijlageType  String?
+  klas         Klas     @relation(fields: [klasId], references: [id])
+  klasId       String
   // Optional: which vak this lesson covers (ensures Klas A hifdh ≠ Klas B hifdh)
-  vak       Vak?     @relation(fields: [vakId], references: [id])
-  vakId     String?
+  vak          Vak?     @relation(fields: [vakId], references: [id])
+  vakId        String?
 
   aanwezigheid Aanwezigheid[]
   huiswerk     Huiswerk[]
@@ -156,17 +177,19 @@ model Huiswerk {
   titel        String
   beschrijving String?
   deadline     DateTime?
-  // Optional file attachment
+  // Optional file attachment (base64-encoded)
   bijlageNaam  String?
   bijlageUrl   String?      // Vercel Blob public URL (preferred for new uploads)
-  bijlageData  String?      // base64-encoded content (legacy fallback)
-  bijlageType  String?      // MIME type
-  vak          Vak          @relation(fields: [vakId], references: [id])
-  vakId        String
-  les          Les?         @relation(fields: [lesId], references: [id])
-  lesId        String?
-  inleveringen Inlevering[]
-  hifdhTaken   HifdhTaak[]
+  bijlageData  String?      // base64-encoded content (legacy fallback for old uploads)
+  bijlageType  String?      // MIME type, e.g. "video/mp4"
+  vak           Vak                @relation(fields: [vakId], references: [id])
+  vakId         String
+  les           Les?               @relation(fields: [lesId], references: [id])
+  lesId         String?
+  inleveringen  Inlevering[]
+  hifdhTaken    HifdhTaak[]
+  // Optioneel gericht op specifieke leerlingen (leeg = hele vak/klas)
+  doelLeerlingen HuiswerkLeerling[]
 }
 
 model Inlevering {
@@ -174,11 +197,27 @@ model Inlevering {
   inhoud      String
   opmerking   String?   // Docent feedback on this submission
   opmerkingOp DateTime? // When the remark was last saved
+  // Leerling-inlevering: optionele bijlage (foto/pdf/audio)
+  bijlageNaam String?
+  bijlageUrl  String?
+  bijlageData String?
+  bijlageType String?
   createdAt   DateTime  @default(now())
   huiswerk    Huiswerk  @relation(fields: [huiswerkId], references: [id])
   huiswerkId  String
   leerling    User      @relation(fields: [leerlingId], references: [id])
   leerlingId  String
+
+  @@unique([huiswerkId, leerlingId])
+}
+
+// Huiswerk gericht op specifieke leerling(en); leeg = zichtbaar voor hele vak/klas
+model HuiswerkLeerling {
+  id         String   @id @default(cuid())
+  huiswerk   Huiswerk @relation(fields: [huiswerkId], references: [id])
+  huiswerkId String
+  leerling   User     @relation(fields: [leerlingId], references: [id])
+  leerlingId String
 
   @@unique([huiswerkId, leerlingId])
 }
@@ -192,12 +231,39 @@ model Bericht {
   groepId     String?
   doelLabel   String?
   replyToId   String?
+  // Optionele bestand-bijlage bij een bericht
+  bijlageNaam String?
+  bijlageUrl  String?
+  bijlageData String?
+  bijlageType String?
   verzender   User      @relation("Verzender", fields: [verzenderId], references: [id])
   verzenderId String
   ontvanger   User      @relation("Ontvanger", fields: [ontvangerId], references: [id])
   ontvangerId String
   replyTo     Bericht?  @relation("BerichtReplies", fields: [replyToId], references: [id])
   replies     Bericht[] @relation("BerichtReplies")
+}
+
+// ── Studiemateriaal ──────────────────────────────────────────────────────────
+// Docent deelt materiaal (bestand of link) met een klas en/of vak;
+// leerlingen en ouders kunnen het bekijken/openen.
+model StudieMateriaal {
+  id           String   @id @default(cuid())
+  titel        String
+  beschrijving String?
+  linkUrl      String?
+  bijlageNaam  String?
+  bijlageUrl   String?
+  bijlageData  String?
+  bijlageType  String?
+  docent       User     @relation(fields: [docentId], references: [id])
+  docentId     String
+  klas         Klas?    @relation(fields: [klasId], references: [id])
+  klasId       String?
+  vak          Vak?     @relation(fields: [vakId], references: [id])
+  vakId        String?
+  schoolId     String?
+  createdAt    DateTime @default(now())
 }
 
 // ── Ouder ↔ Kind koppeling ───────────────────────────────────────────────────

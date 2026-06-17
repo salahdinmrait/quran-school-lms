@@ -10,7 +10,8 @@ export async function GET() {
 
   const leerlingId = session.user.id;
 
-  // Haal alle huiswerk op voor de klassen van de leerling
+  // Huiswerk voor de klassen van de leerling; gericht huiswerk alleen als de
+  // leerling in de doellijst staat (leeg = voor iedereen met dat vak).
   const huiswerk = await prisma.huiswerk.findMany({
     where: {
       vak: {
@@ -20,12 +21,19 @@ export async function GET() {
           },
         },
       },
+      OR: [
+        { doelLeerlingen: { none: {} } },
+        { doelLeerlingen: { some: { leerlingId } } },
+      ],
     },
     include: {
       vak: true,
       inleveringen: {
         where: { leerlingId },
-        select: { id: true, inhoud: true, opmerking: true, opmerkingOp: true, createdAt: true },
+        select: {
+          id: true, inhoud: true, opmerking: true, opmerkingOp: true, createdAt: true,
+          bijlageNaam: true, bijlageType: true,
+        },
       },
     },
     orderBy: { deadline: "asc" },
@@ -42,10 +50,13 @@ export async function GET() {
     ingeLeverd: h.inleveringen.length > 0,
     inlevering: h.inleveringen[0]
       ? {
+          id: h.inleveringen[0].id,
           inhoud: h.inleveringen[0].inhoud,
           createdAt: h.inleveringen[0].createdAt.toISOString(),
           opmerking: h.inleveringen[0].opmerking ?? null,
           opmerkingOp: h.inleveringen[0].opmerkingOp?.toISOString() ?? null,
+          bijlageNaam: h.inleveringen[0].bijlageNaam ?? null,
+          hasBijlage: !!h.inleveringen[0].bijlageNaam,
         }
       : undefined,
   }));

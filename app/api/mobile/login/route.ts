@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role as "ADMIN" | "DOCENT" | "LEERLING" | "OUDER",
       schoolId: user.schoolId ?? null,
+      isVolwassen: user.isVolwassen ?? false,
     });
 
     return NextResponse.json({
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
         role: user.role,
         schoolId: user.schoolId ?? null,
         schoolNaam: user.school?.naam ?? null,
+        isVolwassen: user.isVolwassen ?? false,
       },
     });
   } catch (err) {

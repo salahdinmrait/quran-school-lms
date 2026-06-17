@@ -1,0 +1,73 @@
+-- Jadwal checklist update: 18+ flag, attachments, lesson description,
+-- cijfer opmerking, leerling submissions, targeted homework, study material.
+
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isVolwassen" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "opmerking"   TEXT;
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "opmerkingOp" TIMESTAMP(3);
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "bijlageNaam" TEXT;
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "bijlageUrl"  TEXT;
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "bijlageData" TEXT;
+ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "bijlageType" TEXT;
+
+ALTER TABLE "Les" ADD COLUMN IF NOT EXISTS "beschrijving" TEXT;
+ALTER TABLE "Les" ADD COLUMN IF NOT EXISTS "bijlageNaam"  TEXT;
+ALTER TABLE "Les" ADD COLUMN IF NOT EXISTS "bijlageUrl"   TEXT;
+ALTER TABLE "Les" ADD COLUMN IF NOT EXISTS "bijlageData"  TEXT;
+ALTER TABLE "Les" ADD COLUMN IF NOT EXISTS "bijlageType"  TEXT;
+
+ALTER TABLE "Inlevering" ADD COLUMN IF NOT EXISTS "bijlageNaam" TEXT;
+ALTER TABLE "Inlevering" ADD COLUMN IF NOT EXISTS "bijlageUrl"  TEXT;
+ALTER TABLE "Inlevering" ADD COLUMN IF NOT EXISTS "bijlageData" TEXT;
+ALTER TABLE "Inlevering" ADD COLUMN IF NOT EXISTS "bijlageType" TEXT;
+
+ALTER TABLE "Bericht" ADD COLUMN IF NOT EXISTS "bijlageNaam" TEXT;
+ALTER TABLE "Bericht" ADD COLUMN IF NOT EXISTS "bijlageUrl"  TEXT;
+ALTER TABLE "Bericht" ADD COLUMN IF NOT EXISTS "bijlageData" TEXT;
+ALTER TABLE "Bericht" ADD COLUMN IF NOT EXISTS "bijlageType" TEXT;
+
+CREATE TABLE IF NOT EXISTS "HuiswerkLeerling" (
+    "id"         TEXT NOT NULL,
+    "huiswerkId" TEXT NOT NULL,
+    "leerlingId" TEXT NOT NULL,
+    CONSTRAINT "HuiswerkLeerling_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "HuiswerkLeerling_huiswerkId_leerlingId_key"
+    ON "HuiswerkLeerling"("huiswerkId", "leerlingId");
+DO $$ BEGIN
+  ALTER TABLE "HuiswerkLeerling" ADD CONSTRAINT "HuiswerkLeerling_huiswerkId_fkey"
+    FOREIGN KEY ("huiswerkId") REFERENCES "Huiswerk"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "HuiswerkLeerling" ADD CONSTRAINT "HuiswerkLeerling_leerlingId_fkey"
+    FOREIGN KEY ("leerlingId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS "StudieMateriaal" (
+    "id"           TEXT NOT NULL,
+    "titel"        TEXT NOT NULL,
+    "beschrijving" TEXT,
+    "linkUrl"      TEXT,
+    "bijlageNaam"  TEXT,
+    "bijlageUrl"   TEXT,
+    "bijlageData"  TEXT,
+    "bijlageType"  TEXT,
+    "docentId"     TEXT NOT NULL,
+    "klasId"       TEXT,
+    "vakId"        TEXT,
+    "schoolId"     TEXT,
+    "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "StudieMateriaal_pkey" PRIMARY KEY ("id")
+);
+DO $$ BEGIN
+  ALTER TABLE "StudieMateriaal" ADD CONSTRAINT "StudieMateriaal_docentId_fkey"
+    FOREIGN KEY ("docentId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "StudieMateriaal" ADD CONSTRAINT "StudieMateriaal_klasId_fkey"
+    FOREIGN KEY ("klasId") REFERENCES "Klas"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "StudieMateriaal" ADD CONSTRAINT "StudieMateriaal_vakId_fkey"
+    FOREIGN KEY ("vakId") REFERENCES "Vak"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

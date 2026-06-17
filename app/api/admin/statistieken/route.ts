@@ -85,6 +85,88 @@ export async function GET() {
     })
   );
 
+  // ── Per vak ────────────────────────────────────────────────────────────────
+  const vakken = await prisma.vak.findMany({
+    where: { schoolId },
+    orderBy: { naam: "asc" },
+    include: { klassen: { include: { klas: { include: { leerlingen: { select: { leerlingId: true } } } } } } },
+  });
+
+  const perVak = await Promise.all(
+    vakken.map(async (vak) => {
+      const leerlingIds = [
+        ...new Set(vak.klassen.flatMap((kv) => kv.klas.leerlingen.map((l) => l.leerlingId))),
+      ];
+      const [cijferAgg, totalHw, totalInleveringen, aanwAanwezig, aanwTotaal] = await Promise.all([
+        prisma.cijfer.aggregate({ where: { vakId: vak.id }, _avg: { waarde: true } }),
+        prisma.huiswerk.count({ where: { vakId: vak.id } }),
+        prisma.inlevering.count({ where: { huiswerk: { vakId: vak.id } } }),
+        prisma.aanwezigheid.count({ where: { status: "AANWEZIG", les: { vakId: vak.id } } }),
+        prisma.aanwezigheid.count({ where: { les: { vakId: vak.id } } }),
+      ]);
+      const maxInleveringen = totalHw * leerlingIds.length;
+      return {
+        id: vak.id,
+        naam: vak.naam,
+        categorie: vak.categorie,
+        avgCijfer: cijferAgg._avg.waarde !== null ? Math.round(cijferAgg._avg.waarde * 10) / 10 : null,
+        hwPercent: maxInleveringen > 0 ? Math.round((totalInleveringen / maxInleveringen) * 100) : null,
+        aanwezigheid: aanwTotaal > 0 ? Math.round((aanwAanwezig / aanwTotaal) * 100) : null,
+      };
+    })
+  );
+
+  // ── Per docent ─────────────────────────────────────────────────────────────
+  const docenten = await prisma.user.findMany({
+    where: { role: "DOCENT", actief: true, schoolId },
+    orderBy: { name: "asc" },
+    include: {
+      docentKlassen: {
+        include: {
+          klas: {
+            include: {
+              leerlingen: { select: { leerlingId: true } },
+              vakken: { select: { vakId: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const perDocent = await Promise.all(
+    docenten.map(async (docent) => {
+      const klasIds = docent.docentKlassen.map((kd) => kd.klasId);
+      const leerlingIds = [
+        ...new Set(docent.docentKlassen.flatMap((kd) => kd.klas.leerlingen.map((l) => l.leerlingId))),
+      ];
+      const vakIds = [
+        ...new Set(docent.docentKlassen.flatMap((kd) => kd.klas.vakken.map((v) => v.vakId))),
+      ];
+      if (klasIds.length === 0) {
+        return { id: docent.id, naam: docent.name, klassen: 0, aanwezigheid: null, avgCijfer: null, hwPercent: null };
+      }
+      const [aanwAanwezig, aanwTotaal, cijferAgg, totalHw, totalInleveringen] = await Promise.all([
+        prisma.aanwezigheid.count({ where: { status: "AANWEZIG", les: { klasId: { in: klasIds } } } }),
+        prisma.aanwezigheid.count({ where: { les: { klasId: { in: klasIds } } } }),
+        prisma.cijfer.aggregate({ where: { leerlingId: { in: leerlingIds }, vakId: { in: vakIds } }, _avg: { waarde: true } }),
+        vakIds.length > 0 ? prisma.huiswerk.count({ where: { vakId: { in: vakIds } } }) : Promise.resolve(0),
+        vakIds.length > 0
+          ? prisma.inlevering.count({ where: { leerlingId: { in: leerlingIds }, huiswerk: { vakId: { in: vakIds } } } })
+          : Promise.resolve(0),
+      ]);
+      const maxInleveringen = totalHw * leerlingIds.length;
+      return {
+        id: docent.id,
+        naam: docent.name,
+        klassen: klasIds.length,
+        aanwezigheid: aanwTotaal > 0 ? Math.round((aanwAanwezig / aanwTotaal) * 100) : null,
+        avgCijfer: cijferAgg._avg.waarde !== null ? Math.round(cijferAgg._avg.waarde * 10) / 10 : null,
+        hwPercent: maxInleveringen > 0 ? Math.round((totalInleveringen / maxInleveringen) * 100) : null,
+      };
+    })
+  );
+
   return NextResponse.json({
     totalen: {
       leerlingen: totalLeerlingen,
@@ -93,6 +175,8 @@ export async function GET() {
       vakken: totalVakken,
     },
     perKlas,
+    perVak,
+    perDocent,
     vakkenPerCategorie: vakkenPerCategorie.map((c) => ({
       categorie: c.categorie,
       aantal: c._count.id,
