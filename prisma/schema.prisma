@@ -57,6 +57,23 @@ model User {
   resetTokens        PasswordResetToken[]
   studieMaterialen   StudieMateriaal[]
   huiswerkDoelen     HuiswerkLeerling[]
+  dossierNotities    LeerlingDossier[]   @relation("DossierLeerling")
+  dossierGeschreven  LeerlingDossier[]   @relation("DossierAuteur")
+}
+
+// ── Leerlingendossier ────────────────────────────────────────────────────────
+// Notities die docenten/admins over een leerling vastleggen. Blijft bij de
+// leerling: latere docenten zien wat eerdere docenten schreven en kunnen
+// zelf aanvullen.
+model LeerlingDossier {
+  id         String   @id @default(cuid())
+  leerling   User     @relation("DossierLeerling", fields: [leerlingId], references: [id])
+  leerlingId String
+  auteur     User     @relation("DossierAuteur", fields: [auteurId], references: [id])
+  auteurId   String
+  titel      String?
+  inhoud     String
+  createdAt  DateTime @default(now())
 }
 
 model Klas {
