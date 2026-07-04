@@ -26,3 +26,5 @@ npm-debug.log*
 next-env.d.ts
 
 .vercel
+dev.db
+dev.db-journal
