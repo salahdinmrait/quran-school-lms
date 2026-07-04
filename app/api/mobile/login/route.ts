@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
       include: { school: { select: { id: true, naam: true, actief: true } } },
     });
 
-    if (!user || !user.actief) {
+    // Gearchiveerde (soft-deleted) accounts kunnen niet meer inloggen
+    if (!user || !user.actief || user.verwijderdOp) {
       return NextResponse.json({ error: "Ongeldige inloggegevens" }, { status: 401 });
     }
 

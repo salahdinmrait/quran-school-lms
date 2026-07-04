@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 async function getOwnedKlas(id: string, schoolId: string | null) {
   const klas = await prisma.klas.findUnique({ where: { id } });
-  if (!klas || klas.schoolId !== schoolId) return null;
+  if (!klas || klas.schoolId !== schoolId || klas.verwijderdOp) return null;
   return klas;
 }
 
@@ -22,9 +22,15 @@ export async function GET(
   const klas = await prisma.klas.findUnique({
     where: { id },
     include: {
-      docenten: { include: { docent: { select: { id: true, name: true, email: true } } } },
-      leerlingen: { include: { leerling: { select: { id: true, name: true, email: true } } } },
-      vakken: { include: { vak: true } },
+      docenten: {
+        where: { docent: { verwijderdOp: null } },
+        include: { docent: { select: { id: true, name: true, email: true } } },
+      },
+      leerlingen: {
+        where: { leerling: { verwijderdOp: null } },
+        include: { leerling: { select: { id: true, name: true, email: true } } },
+      },
+      vakken: { where: { vak: { verwijderdOp: null } }, include: { vak: true } },
     },
   });
 
@@ -84,27 +90,12 @@ export async function DELETE(
   }
 
   try {
-    // Delete in order to respect FK constraints
-    // First delete aanwezigheid for lessen in this klas
-    const lesIds = (await prisma.les.findMany({ where: { klasId: id }, select: { id: true } }))
-      .map((l) => l.id);
-
-    if (lesIds.length > 0) {
-      await prisma.aanwezigheid.deleteMany({ where: { lesId: { in: lesIds } } });
-      // Delete inleveringen for huiswerk linked to these lessen
-      const hwIds = (await prisma.huiswerk.findMany({ where: { lesId: { in: lesIds } }, select: { id: true } }))
-        .map((h) => h.id);
-      if (hwIds.length > 0) {
-        await prisma.inlevering.deleteMany({ where: { huiswerkId: { in: hwIds } } });
-        await prisma.huiswerk.deleteMany({ where: { id: { in: hwIds } } });
-      }
-      await prisma.les.deleteMany({ where: { klasId: id } });
-    }
-
-    await prisma.klasDocent.deleteMany({ where: { klasId: id } });
-    await prisma.klasLeerling.deleteMany({ where: { klasId: id } });
-    await prisma.klasVak.deleteMany({ where: { klasId: id } });
-    await prisma.klas.delete({ where: { id } });
+    // Soft delete: naar het archief (lessen/koppelingen blijven bestaan tot de
+    // admin de klas definitief verwijdert via /api/admin/archief).
+    await prisma.klas.update({
+      where: { id },
+      data: { verwijderdOp: new Date() },
+    });
 
     return NextResponse.json({ success: true });
   } catch {

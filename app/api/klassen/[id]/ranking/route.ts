@@ -36,6 +36,7 @@ export async function GET(
     include: {
       vakken: { select: { vakId: true } },
       leerlingen: {
+        where: { leerling: { verwijderdOp: null } },
         include: { leerling: { select: { id: true, name: true } } },
       },
     },

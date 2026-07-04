@@ -255,7 +255,7 @@ async function main() {
   for (const l of leerlingIds) {
     const ouder = parentMap.get(l.parentName)!;
     await prisma.ouderLeerling.upsert({
-      where:  { ouderId_leerlingId: { ouderId: ouder.id, leerlingId: l.id } },
+      where:  { leerlingId: l.id },
       create: { ouderId: ouder.id, leerlingId: l.id },
       update: {},
     });

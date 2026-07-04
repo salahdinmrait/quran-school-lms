@@ -14,11 +14,14 @@ export async function GET() {
 
   const [klasDocenten, admins] = await Promise.all([
     prisma.klasDocent.findMany({
-      where: { klas: { leerlingen: { some: { leerlingId } } } },
+      where: {
+        klas: { verwijderdOp: null, leerlingen: { some: { leerlingId } } },
+        docent: { verwijderdOp: null },
+      },
       include: { docent: { select: { id: true, name: true } } },
     }),
     prisma.user.findMany({
-      where: { role: "ADMIN", actief: true, schoolId: session.user.schoolId ?? null },
+      where: { role: "ADMIN", actief: true, verwijderdOp: null, schoolId: session.user.schoolId ?? null },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),

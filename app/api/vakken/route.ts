@@ -11,7 +11,7 @@ export async function GET() {
 
   try {
     const vakken = await prisma.vak.findMany({
-      where: { schoolId: session.user.schoolId ?? null },
+      where: { schoolId: session.user.schoolId ?? null, verwijderdOp: null },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {

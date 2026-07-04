@@ -111,7 +111,7 @@ async function main() {
       const ouder = await ensureUser(`Ouder van ${naam.split(" ")[0]}`, emailBase(`ouder.${slugn}`), "OUDER");
       ouders.push(ouder);
       await prisma.ouderLeerling.upsert({
-        where: { ouderId_leerlingId: { ouderId: ouder.id, leerlingId: l.id } },
+        where: { leerlingId: l.id },
         create: { ouderId: ouder.id, leerlingId: l.id },
         update: {},
       });

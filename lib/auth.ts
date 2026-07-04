@@ -74,7 +74,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           where: { email: credentials.email as string },
         });
 
-        if (!user || !user.actief) {
+        // Gearchiveerde (soft-deleted) accounts kunnen niet meer inloggen
+        if (!user || !user.actief || user.verwijderdOp) {
           return null;
         }
 

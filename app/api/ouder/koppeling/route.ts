@@ -51,10 +51,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const koppeling = await prisma.ouderLeerling.upsert({
-      where: { ouderId_leerlingId: { ouderId, leerlingId } },
-      create: { ouderId, leerlingId },
-      update: {},
+    // Een kind heeft maximaal één ouder-account (DB dwingt dit ook af).
+    const bestaande = await prisma.ouderLeerling.findUnique({ where: { leerlingId } });
+    if (bestaande) {
+      if (bestaande.ouderId === ouderId) return NextResponse.json(bestaande, { status: 200 });
+      return NextResponse.json(
+        { error: "Dit kind is al gekoppeld aan een andere ouder. Ontkoppel die eerst." },
+        { status: 409 }
+      );
+    }
+
+    const koppeling = await prisma.ouderLeerling.create({
+      data: { ouderId, leerlingId },
     });
     return NextResponse.json(koppeling, { status: 201 });
   } catch {
@@ -71,8 +79,8 @@ export async function DELETE(req: NextRequest) {
 
   const { ouderId, leerlingId } = await req.json();
   try {
-    await prisma.ouderLeerling.delete({
-      where: { ouderId_leerlingId: { ouderId, leerlingId } },
+    await prisma.ouderLeerling.deleteMany({
+      where: { ouderId, leerlingId },
     });
     return NextResponse.json({ success: true });
   } catch {

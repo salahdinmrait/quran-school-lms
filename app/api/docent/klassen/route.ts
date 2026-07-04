@@ -12,12 +12,13 @@ export async function GET() {
   const docentId = session.user.id;
 
   const klasDocenten = await prisma.klasDocent.findMany({
-    where: { docentId },
+    where: { docentId, klas: { verwijderdOp: null } },
     include: {
       klas: {
         include: {
-          vakken: { include: { vak: true } },
+          vakken: { where: { vak: { verwijderdOp: null } }, include: { vak: true } },
           leerlingen: {
+            where: { leerling: { verwijderdOp: null } },
             include: {
               leerling: {
                 select: {
@@ -25,6 +26,7 @@ export async function GET() {
                   name: true,
                   // Ouder(s) of this leerling
                   kindVan: {
+                    where: { ouder: { verwijderdOp: null } },
                     select: {
                       ouder: { select: { id: true, name: true } },
                     },

@@ -8,7 +8,7 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
 
   const klassen = await prisma.klas.findMany({
-    where: { schoolId: session.user.schoolId ?? null },
+    where: { schoolId: session.user.schoolId ?? null, verwijderdOp: null },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { leerlingen: true, docenten: true, vakken: true } } },
   });

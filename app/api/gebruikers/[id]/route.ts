@@ -57,7 +57,12 @@ export async function DELETE(
   }
 
   try {
-    await prisma.user.delete({ where: { id } });
+    // Soft delete: naar het archief. Definitief verwijderen kan alleen
+    // via /api/admin/archief (admin).
+    await prisma.user.update({
+      where: { id },
+      data: { verwijderdOp: new Date(), actief: false },
+    });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Verwijderen mislukt" }, { status: 500 });

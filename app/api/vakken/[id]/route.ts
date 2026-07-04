@@ -101,7 +101,12 @@ export async function DELETE(
       );
     }
 
-    await prisma.vak.delete({ where: { id } });
+    // Soft delete: naar het archief. Definitief verwijderen kan alleen
+    // via /api/admin/archief (admin).
+    await prisma.vak.update({
+      where: { id },
+      data: { verwijderdOp: new Date() },
+    });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Kon vak niet verwijderen" }, { status: 500 });

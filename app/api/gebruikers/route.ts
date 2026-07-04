@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const gebruikers = await prisma.user.findMany({
     where: {
       schoolId: session.user.schoolId ?? null,
+      verwijderdOp: null,
       ...(roleFilter ? { role: roleFilter } : {}),
     },
     orderBy: { name: "asc" },
