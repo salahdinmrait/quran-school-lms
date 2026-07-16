@@ -62,6 +62,36 @@ export function passwordResetEmail(naam: string, resetUrl: string): string {
   `;
 }
 
+export function welkomstEmail(
+  naam: string,
+  email: string,
+  wachtwoord: string,
+  resetUrl: string,
+  schoolNaam: string,
+  webappUrl: string
+): string {
+  return `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:24px">
+      <h2 style="color:#15803d">Welkom bij Jadwal</h2>
+      <p>Beste ${naam},</p>
+      <p><strong>${schoolNaam}</strong> heeft een Jadwal-account voor u aangemaakt. Met Jadwal volgt u het rooster, huiswerk, cijfers en berichten van de school.</p>
+      <p style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px;border-radius:4px">
+        <strong>Inloggegevens</strong><br/>
+        E-mailadres: <strong>${email}</strong><br/>
+        Tijdelijk wachtwoord: <strong>${wachtwoord}</strong>
+      </p>
+      <p>We raden aan om direct een eigen wachtwoord te kiezen:</p>
+      <a href="${resetUrl}" style="display:inline-block;background:#15803d;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;margin:16px 0">
+        Kies je eigen wachtwoord
+      </a>
+      <p style="color:#6b7280;font-size:13px">Deze link is 7 dagen geldig. Daarna kunt u altijd nog inloggen met het tijdelijke wachtwoord hierboven en via "Wachtwoord vergeten" een nieuw wachtwoord instellen.</p>
+      <p>Inloggen kan via <a href="${webappUrl}" style="color:#15803d">${webappUrl}</a> of via de Jadwal-app.</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
+      <p style="color:#9ca3af;font-size:12px">Jadwal — Quran School LMS</p>
+    </div>
+  `;
+}
+
 export function berichtNotificatieEmail(
   ontvangerNaam: string,
   verzenderNaam: string,

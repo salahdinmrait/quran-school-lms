@@ -9,6 +9,7 @@ const schema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
+  telefoon: z.string().max(30).optional().nullable(),
   // 18+ zelfstandige leerling zonder ouder-account
   isVolwassen: z.boolean().optional(),
 });
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       ...(roleFilter ? { role: roleFilter } : {}),
     },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, email: true, role: true, actief: true, isVolwassen: true, createdAt: true },
+    select: { id: true, name: true, email: true, role: true, telefoon: true, actief: true, isVolwassen: true, createdAt: true },
   });
 
   return NextResponse.json(gebruikers);
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
         email: parsed.data.email,
         password: hashedPassword,
         role: parsed.data.role,
+        telefoon: parsed.data.telefoon?.trim() || null,
         schoolId: session.user.schoolId ?? null,
         // Alleen relevant voor leerlingen; voor andere rollen altijd false
         isVolwassen: parsed.data.role === "LEERLING" ? !!parsed.data.isVolwassen : false,

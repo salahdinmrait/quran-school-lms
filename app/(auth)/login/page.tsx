@@ -127,16 +127,13 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Test credentials */}
-            <div className="mt-6 p-3 bg-green-50 rounded-md border border-green-200">
-              <p className="text-xs font-medium text-green-700 mb-2">Testaccounts:</p>
-              <div className="space-y-1 text-xs text-green-600">
-                <p><span className="font-medium">Admin:</span> admin@jadwal.test / Admin@2024</p>
-                <p><span className="font-medium">Docent 1:</span> docent1@jadwal.test / Docent@2024</p>
-                <p><span className="font-medium">Docent 2:</span> docent2@jadwal.test / Docent@2024</p>
-                <p><span className="font-medium">Leerling:</span> omar.al.rashidi@leerling.test / Leerling@2024</p>
-                <p><span className="font-medium">Ouder:</span> khalid.al.rashidi@ouder.test / Ouder@2024</p>
-              </div>
+            <div className="text-center mt-4">
+              <Link
+                href="/login/wachtwoord-vergeten"
+                className="text-sm text-green-700 hover:underline"
+              >
+                Wachtwoord vergeten?
+              </Link>
             </div>
           </CardContent>
         </Card>

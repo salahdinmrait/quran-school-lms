@@ -45,6 +45,25 @@ export default function SchoolDetailPage() {
     { name: string; email: string; role: string; password: string }[]
   >([]);
 
+  // Excel-import
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{
+    totaal: number;
+    aangemaakt: number;
+    overgeslagen: number;
+    fouten: number;
+    resultaten: {
+      rij: number;
+      naam: string;
+      email: string;
+      status: "aangemaakt" | "overgeslagen" | "fout";
+      reden?: string;
+      wachtwoord?: string;
+    }[];
+  } | null>(null);
+
   const load = useCallback(() => {
     fetch(`/api/dev/scholen/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Kon school niet laden"))))
@@ -89,6 +108,34 @@ export default function SchoolDetailPage() {
       load();
     } finally {
       setAccLoading(false);
+    }
+  }
+
+  async function handleImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!importFile) return;
+    setImportError(null);
+    setImportResult(null);
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("bestand", importFile);
+      const res = await fetch(`/api/dev/scholen/${id}/import`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportError(data.error ?? "Import mislukt");
+        return;
+      }
+      setImportResult(data);
+      setImportFile(null);
+      load();
+    } catch {
+      setImportError("Import mislukt — probeer het opnieuw");
+    } finally {
+      setImportLoading(false);
     }
   }
 
@@ -224,6 +271,90 @@ export default function SchoolDetailPage() {
               {accLoading ? "Bezig..." : "Account aanmaken"}
             </button>
           </form>
+
+          <form
+            onSubmit={handleImport}
+            className="space-y-3 rounded-lg border border-slate-800 bg-slate-900 p-4"
+          >
+            <h2 className="font-medium">Gebruikers importeren (Excel)</h2>
+            <p className="text-xs text-slate-400">
+              Laat de school de template invullen en upload hem hier. Voor iedere rij wordt
+              een account aangemaakt en automatisch een welkomstmail met inloggegevens
+              verstuurd. Tip: splits lijsten groter dan ±150 rijen in meerdere bestanden.
+            </p>
+            <a
+              href="/api/dev/import-template"
+              className="inline-block rounded-md border border-emerald-700 px-3 py-1.5 text-sm text-emerald-400 hover:bg-emerald-950"
+            >
+              ⬇ Download template
+            </a>
+            <div>
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-400 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:text-white hover:file:bg-slate-600"
+              />
+            </div>
+            {importError && <p className="text-sm text-red-400">{importError}</p>}
+            <button
+              type="submit"
+              disabled={!importFile || importLoading}
+              className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {importLoading ? "Bezig met importeren... (kan even duren)" : "Importeren"}
+            </button>
+          </form>
+
+          {importResult && (
+            <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+              <p className="mb-2 text-sm font-medium">
+                Import klaar: <span className="text-emerald-400">{importResult.aangemaakt} aangemaakt</span>
+                {importResult.overgeslagen > 0 && (
+                  <span className="text-amber-400"> · {importResult.overgeslagen} overgeslagen</span>
+                )}
+                {importResult.fouten > 0 && (
+                  <span className="text-red-400"> · {importResult.fouten} fouten</span>
+                )}
+              </p>
+              <div className="max-h-80 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-slate-500">
+                      <th className="py-1 pr-2">Rij</th>
+                      <th className="py-1 pr-2">E-mail</th>
+                      <th className="py-1">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {importResult.resultaten.map((r) => (
+                      <tr key={r.rij}>
+                        <td className="py-1 pr-2 text-slate-500">{r.rij}</td>
+                        <td className="py-1 pr-2 font-mono">{r.email || "—"}</td>
+                        <td className="py-1">
+                          {r.status === "aangemaakt" && (
+                            <span className="text-emerald-400">
+                              ✓ aangemaakt{r.wachtwoord ? ` · ww: ${r.wachtwoord}` : ""}
+                            </span>
+                          )}
+                          {r.status === "overgeslagen" && (
+                            <span className="text-amber-400">− {r.reden ?? "overgeslagen"}</span>
+                          )}
+                          {r.status === "fout" && (
+                            <span className="text-red-400">✗ {r.reden ?? "fout"}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                De wachtwoorden hierboven zijn alleen nu zichtbaar — iedere gebruiker heeft
+                ze ook per e-mail ontvangen.
+              </p>
+            </div>
+          )}
 
           {createdCreds.length > 0 && (
             <div className="rounded-lg border border-amber-700 bg-amber-950 p-4">

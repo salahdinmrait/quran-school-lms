@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { expectedDevToken, DEV_COOKIE } from "@/lib/dev-auth";
+import { telPogingen, registreerPoging, clientIp } from "@/lib/rate-limit";
 
 // POST /api/dev/login — developer console login with DEVELOPER_SECRET
 export async function POST(req: NextRequest) {
@@ -12,7 +13,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Brute-force-bescherming: max 10 mislukte pogingen per IP per 15 min
+  const ipSleutel = `devlogin-ip:${clientIp(req.headers)}`;
+  if ((await telPogingen(ipSleutel, 15)) >= 10) {
+    return NextResponse.json(
+      { error: "Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw." },
+      { status: 429 }
+    );
+  }
+
   if (!secret || secret !== process.env.DEVELOPER_SECRET) {
+    await registreerPoging(ipSleutel);
     return NextResponse.json({ error: "Ongeldige developer-sleutel" }, { status: 401 });
   }
 

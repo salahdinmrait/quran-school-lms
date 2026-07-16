@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { telPogingen, registreerPoging, wisPogingen } from "@/lib/rate-limit";
 
 type Role = "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
 
@@ -70,12 +71,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        // Brute-force-bescherming: max 5 mislukte pogingen per e-mail per 15 min
+        const emailNorm = String(credentials.email).toLowerCase().trim();
+        const emailSleutel = `login-email:${emailNorm}`;
+        if ((await telPogingen(emailSleutel, 15)) >= 5) {
+          return null;
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email: emailNorm },
         });
 
         // Gearchiveerde (soft-deleted) accounts kunnen niet meer inloggen
         if (!user || !user.actief || user.verwijderdOp) {
+          await registreerPoging(emailSleutel);
           return null;
         }
 
@@ -85,8 +94,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!passwordValid) {
+          await registreerPoging(emailSleutel);
           return null;
         }
+
+        await wisPogingen(emailSleutel);
 
         return {
           id: user.id,

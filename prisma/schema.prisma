@@ -37,6 +37,7 @@ model User {
   email     String   @unique
   password  String
   role      String   @default("LEERLING")
+  telefoon  String?
   actief    Boolean  @default(true)
   // 18+ zelfstandige leerling zonder ouder-account: mag zelf gesprekken starten
   isVolwassen Boolean @default(false)
@@ -364,6 +365,17 @@ model HifdhTaak {
   // Link to auto-created huiswerk entry
   huiswerk   Huiswerk?    @relation(fields: [huiswerkId], references: [id])
   huiswerkId String?
+}
+
+// ── Rate limiting ────────────────────────────────────────────────────────────
+// Fixed-window teller voor login/reset-pogingen. Sleutel is bv. "login-email:x@y"
+// of "login-ip:1.2.3.4". Oude rijen worden opgeruimd door de backup-cron.
+model LoginPoging {
+  id       String   @id @default(cuid())
+  sleutel  String
+  tijdstip DateTime @default(now())
+
+  @@index([sleutel, tijdstip])
 }
 
 // ── Password reset tokens ─────────────────────────────────────────────────────
