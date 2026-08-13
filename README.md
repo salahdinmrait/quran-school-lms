@@ -460,7 +460,7 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `WEBAPP_URL` | Link naar de webapp in de welkomstmail |
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
-| `BLOB_READ_WRITE_TOKEN` | Automatisch gezet door Vercel bij het koppelen van een Blob-store |
+| `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig |
 
 Zonder SMTP-vars werkt alles nog steeds — mails worden dan alleen gelogd
 (§8). Zonder `CRON_SECRET`/`BACKUP_SECRET` slaat de backup-route direct af
