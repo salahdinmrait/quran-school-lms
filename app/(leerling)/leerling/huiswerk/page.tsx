@@ -145,7 +145,7 @@ export default function HuiswerkPage() {
                     </div>
                     {hw.deadline && (
                       <p className="text-xs text-red-500 whitespace-nowrap shrink-0">
-                        Deadline: {new Date(hw.deadline).toLocaleDateString("nl-NL")}
+                        Deadline: {formatDate(hw.deadline)}
                       </p>
                     )}
                   </div>

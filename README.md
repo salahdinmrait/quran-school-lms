@@ -222,13 +222,13 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | `api/klassen/[id]/leerlingen`, `/docenten`, `/vakken` | GET/POST | Koppelingen beheren |
 | `api/klassen/[id]/ranking` | GET | Klassement (gemiddelde cijfers) |
 | `api/vakken`, `api/vakken/[id]` | GET/POST/PUT | Vakken CRUD |
-| `api/lessen`, `api/lessen/[id]` | GET/POST/PUT | Rooster/lessen |
+| `api/lessen`, `api/lessen/[id]` | GET/POST/PATCH/DELETE | Rooster/lessen. GET geeft per les `hasBijlage` + `huiswerkAantal` (nooit de base64 `bijlageData`). PATCH accepteert ook `datum`. DELETE wist de aanwezigheid van die les en ontkoppelt het huiswerk (`lesId: null`) in plaats van het te verwijderen |
 
 ### Docent
 | Route | Doel |
 |---|---|
 | `api/docent/klassen` | Eigen klassen |
-| `api/docent/lessen` | Eigen roosterregels |
+| `api/docent/lessen` | Eigen roosterregels (incl. `vak`, `hasBijlage`, `huiswerkAantal`; zonder `bijlageData`) |
 | `api/docent/cijfers`, `/cijfers/[id]` | Cijfers invoeren/bewerken |
 | `api/docent/absentie` | Aanwezigheid registreren |
 | `api/docent/huiswerk`, `/huiswerk/[id]` | Huiswerk aanmaken/bewerken |
@@ -341,6 +341,9 @@ Templates:
   (7 dagen geldig), link naar de webapp (`WEBAPP_URL`).
 - **`passwordResetEmail()`** — de klassieke "wachtwoord vergeten"-flow (§9),
   1 uur geldig.
+
+Beide wachtwoordknoppen linken naar **de webapp** (`lib/urls.ts` →
+`wachtwoordInstellenUrl()`), niet naar een LMS-pagina — zie §9.
 - **`berichtNotificatieEmail()`** — melding bij een nieuw bericht.
 
 ### Huisstijl van de mails
@@ -376,11 +379,23 @@ Twee ingangen, zelfde `PasswordResetToken`-tabel:
 2. **Bulk-import welkomstmail** — zelfde tokenmechanisme, maar **7 dagen**
    geldig (§7).
 
-Beide leiden naar dezelfde backend-pagina `app/(auth)/login/reset-password`
-(werkt op elk apparaat, ook als de gebruiker de link op een andere telefoon/PC
-opent dan waar de app op staat) → `POST /api/auth/reset-password` met het
-token + nieuw wachtwoord. Een token is eenmalig bruikbaar (`gebruikt: true`
-na gebruik) en verloopt op `verlooptOp`.
+Beide links wijzen naar **de webapp**, niet naar de LMS:
+`{WEBAPP_URL}/wachtwoord-instellen?token=…`. Daar staat het scherm met de
+huisstijl; na het opslaan stuurt de app door naar haar eigen inlogpagina.
+Het scherm werkt in elke browser, dus ook als de gebruiker de link op een
+ander apparaat opent dan waar de app op staat.
+
+Alle uitgaande links worden gebouwd in **`lib/urls.ts`** (`WEBAPP_URL` +
+`wachtwoordInstellenUrl(token)`) — één plek, zodat mail en import niet uit
+elkaar kunnen lopen.
+
+De oude LMS-pagina `app/(auth)/login/reset-password` bestaat nog, maar doet
+alleen nog een `redirect()` naar de app: eerder verstuurde mails blijven zo
+werken.
+
+Het scherm in de app post naar `POST /api/auth/reset-password` met het token +
+nieuw wachtwoord. Een token is eenmalig bruikbaar (`gebruikt: true` na gebruik)
+en verloopt op `verlooptOp`.
 
 ## 10. Rate limiting (brute-force-bescherming)
 
@@ -499,7 +514,7 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `NEXTAUTH_URL` | Basis-URL voor door NextAuth gegenereerde links |
 | `DEVELOPER_SECRET` | Wachtwoord voor `/dev` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Resend SMTP-interface voor alle uitgaande mail |
-| `WEBAPP_URL` | Link naar de webapp in de welkomstmail |
+| `WEBAPP_URL` | Basis-URL van de webapp — álle links in uitgaande mail (welkomstmail, wachtwoord instellen, inloggen) wijzen hierheen, via `lib/urls.ts` |
 | `MAIL_AFZENDER_ADRES` | Optioneel — postadres in de mailfooter; leeg = geen adres tonen (§8) |
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |

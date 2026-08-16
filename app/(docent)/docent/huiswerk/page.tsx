@@ -413,7 +413,7 @@ export default function HuiswerkPage() {
                     <option value="">— Geen —</option>
                     {lessenForKlas.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {new Date(l.datum).toLocaleDateString("nl-NL")} {l.begintijd}–{l.eindtijd}
+                        {formatDate(l.datum)} {l.begintijd}–{l.eindtijd}
                       </option>
                     ))}
                   </select>
@@ -509,8 +509,8 @@ export default function HuiswerkPage() {
                         <VakBadge categorie={hw.vak.categorie as VakCategorie} />
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                        {hw.deadline && <span>Deadline: {new Date(hw.deadline).toLocaleDateString("nl-NL")}</span>}
-                        {hw.les && <span>Les: {new Date(hw.les.datum).toLocaleDateString("nl-NL")}</span>}
+                        {hw.deadline && <span>Deadline: {formatDate(hw.deadline)}</span>}
+                        {hw.les && <span>Les: {formatDate(hw.les.datum)}</span>}
                         {hw.hasBijlage && hw.bijlageNaam && (
                           <a
                             href={`/api/bijlage/${hw.id}`}

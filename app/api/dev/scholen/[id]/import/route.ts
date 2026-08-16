@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isDevAuthenticated } from "@/lib/dev-auth";
 import { sendMail, welkomstEmail } from "@/lib/email";
+import { WEBAPP_URL, wachtwoordInstellenUrl } from "@/lib/urls";
 import { hash } from "bcryptjs";
 import ExcelJS from "exceljs";
 import crypto from "crypto";
@@ -11,7 +12,6 @@ export const maxDuration = 300;
 
 const GELDIGE_ROLLEN = ["LEERLING", "OUDER", "DOCENT", "ADMIN"] as const;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const WEBAPP_URL = process.env.WEBAPP_URL ?? "https://quran-school-app.vercel.app";
 
 type RijResultaat = {
   rij: number;
@@ -167,8 +167,7 @@ export async function POST(
             verlooptOp: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           },
         });
-        const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-        const resetUrl = `${appUrl}/login/reset-password?token=${resetToken}`;
+        const resetUrl = wachtwoordInstellenUrl(resetToken);
 
         await sendMail({
           to: k.email,

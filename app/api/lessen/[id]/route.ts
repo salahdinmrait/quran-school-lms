@@ -33,6 +33,9 @@ export async function DELETE(
   try {
     // Aanwezigheid hangt aan de les; eerst opruimen i.v.m. FK constraints
     await prisma.aanwezigheid.deleteMany({ where: { lesId: id } });
+    // Huiswerk blijft bestaan (het hangt óók aan een vak) maar verliest de
+    // koppeling met deze les — anders blokkeert de foreign key het verwijderen.
+    await prisma.huiswerk.updateMany({ where: { lesId: id }, data: { lesId: null } });
     await prisma.les.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch {
@@ -70,6 +73,13 @@ export async function PATCH(
   const data: Record<string, unknown> = {};
   for (const f of ["begintijd", "eindtijd", "lokaal", "beschrijving"] as const) {
     if (body[f] !== undefined) data[f] = body[f] || null;
+  }
+  if (body.datum !== undefined) {
+    const d = new Date(body.datum);
+    if (isNaN(d.getTime())) {
+      return NextResponse.json({ error: "Ongeldige datum" }, { status: 400 });
+    }
+    data.datum = d;
   }
   if (body.bijlageNaam !== undefined) {
     data.bijlageNaam = body.bijlageNaam || null;

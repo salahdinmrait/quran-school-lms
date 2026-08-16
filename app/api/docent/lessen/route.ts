@@ -23,8 +23,18 @@ export async function GET() {
           vakken: { include: { vak: true } },
         },
       },
+      vak: true,
+      _count: { select: { huiswerk: true } },
     },
   });
 
-  return NextResponse.json(lessen);
+  // bijlageData is base64 en kan megabytes per les zijn — nooit in een lijst
+  // meesturen. De app haalt de bijlage zelf op via /api/attachment/les/[id].
+  const result = lessen.map(({ bijlageData: _d, _count, ...l }) => ({
+    ...l,
+    hasBijlage: !!l.bijlageNaam,
+    huiswerkAantal: _count.huiswerk,
+  }));
+
+  return NextResponse.json(result);
 }

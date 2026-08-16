@@ -86,7 +86,7 @@ export default function OuderHuiswerkPage() {
                               </div>
                               {hw.deadline && (
                                 <p className="text-xs text-red-500 whitespace-nowrap shrink-0">
-                                  {t("huiswerk_deadline")}: {new Date(hw.deadline).toLocaleDateString("nl-NL")}
+                                  {t("huiswerk_deadline")}: {formatDate(hw.deadline)}
                                 </p>
                               )}
                             </div>

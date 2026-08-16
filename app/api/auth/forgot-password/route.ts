@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendMail, passwordResetEmail } from "@/lib/email";
 import { telPogingen, registreerPoging, clientIp } from "@/lib/rate-limit";
+import { wachtwoordInstellenUrl } from "@/lib/urls";
 import crypto from "crypto";
 
 // POST /api/auth/forgot-password — request a password reset link
@@ -51,8 +52,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const resetUrl = `${appUrl}/login/reset-password?token=${token}`;
+  const resetUrl = wachtwoordInstellenUrl(token);
 
   await sendMail({
     to: gebruiker.email,

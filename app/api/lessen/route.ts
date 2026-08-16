@@ -27,10 +27,15 @@ export async function GET() {
     include: {
       klas: klasInclude,
       vak: true,
+      _count: { select: { huiswerk: true } },
     },
   });
 
-  const result = lessen.map(({ bijlageData: _d, ...l }) => ({ ...l, hasBijlage: !!l.bijlageNaam }));
+  const result = lessen.map(({ bijlageData: _d, _count, ...l }) => ({
+    ...l,
+    hasBijlage: !!l.bijlageNaam,
+    huiswerkAantal: _count.huiswerk,
+  }));
   return NextResponse.json(result);
 }
 
