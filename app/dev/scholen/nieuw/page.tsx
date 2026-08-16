@@ -102,8 +102,10 @@ export default function NieuweSchoolPage() {
     );
   }
 
+  // text-slate-100 is nodig: globals.css zet `input { color: #111827 }` (donker),
+  // wat op de donkere dev-achtergrond onleesbaar is. Een class wint van die regel.
   const inputClass =
-    "w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500";
+    "w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500";
 
   return (
     <div className="mx-auto max-w-lg">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 interface Account {
   id: string;
@@ -34,8 +34,15 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [school, setSchool] = useState<SchoolDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Definitief verwijderen (gevarenzone)
+  const [delOpen, setDelOpen] = useState(false);
+  const [delSlug, setDelSlug] = useState("");
+  const [delLoading, setDelLoading] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
 
   // Nieuw account form
   const [accForm, setAccForm] = useState({ name: "", email: "", role: "DOCENT", password: "" });
@@ -81,6 +88,30 @@ export default function SchoolDetailPage() {
       body: JSON.stringify({ actief: !school.actief }),
     });
     if (res.ok) load();
+  }
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!school) return;
+    setDelError(null);
+    setDelLoading(true);
+    try {
+      const res = await fetch(`/api/dev/scholen/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bevestiging: delSlug.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDelError(data.error ?? "Kon school niet verwijderen");
+        return;
+      }
+      router.push("/dev");
+    } catch {
+      setDelError("Verwijderen mislukt — probeer het opnieuw");
+    } finally {
+      setDelLoading(false);
+    }
   }
 
   async function handleCreateAccount(e: React.FormEvent) {
@@ -142,8 +173,10 @@ export default function SchoolDetailPage() {
   if (error) return <p className="text-red-400">{error}</p>;
   if (!school) return <p className="text-slate-400">Laden...</p>;
 
+  // text-slate-100 is nodig: globals.css zet `input { color: #111827 }` (donker),
+  // wat op de donkere dev-achtergrond onleesbaar is. Een class wint van die regel.
   const inputClass =
-    "w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-emerald-500";
+    "w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500";
 
   const byRole = (role: string) => school.gebruikers.filter((g) => g.role === role);
 
@@ -373,6 +406,67 @@ export default function SchoolDetailPage() {
           )}
         </div>
       </div>
+
+      <section className="mt-10 rounded-lg border border-red-900 bg-red-950/40 p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-red-400">
+          Gevarenzone
+        </h2>
+        <p className="mt-2 text-sm text-slate-300">
+          <strong>Deactiveren</strong> houdt alles bewaard en blokkeert alleen het inloggen —
+          dat is bijna altijd wat je wilt. <strong>Definitief verwijderen</strong> wist de
+          school en álle bijbehorende data (accounts, klassen, vakken, cijfers, huiswerk,
+          aanwezigheid, berichten, materialen). Dit is <strong>onomkeerbaar</strong> en kan
+          alleen nog worden teruggehaald uit een nachtelijke backup van vóór het verwijderen.
+        </p>
+
+        {!delOpen ? (
+          <button
+            onClick={() => {
+              setDelOpen(true);
+              setDelError(null);
+              setDelSlug("");
+            }}
+            className="mt-3 rounded-md border border-red-700 px-3 py-1.5 text-sm text-red-300 hover:bg-red-900"
+          >
+            School definitief verwijderen…
+          </button>
+        ) : (
+          <form onSubmit={handleDelete} className="mt-3 max-w-md space-y-3">
+            <p className="text-sm text-slate-300">
+              Typ ter bevestiging de slug{" "}
+              <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-red-300">
+                {school.slug}
+              </code>{" "}
+              over:
+            </p>
+            <input
+              value={delSlug}
+              onChange={(e) => setDelSlug(e.target.value)}
+              className={inputClass}
+              placeholder={school.slug}
+              autoComplete="off"
+            />
+            {delError && <p className="text-sm text-red-400">{delError}</p>}
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={delLoading || delSlug.trim() !== school.slug}
+                className="rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-40"
+              >
+                {delLoading ? "Bezig met verwijderen..." : "Ja, definitief verwijderen"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDelOpen(false)}
+                disabled={delLoading}
+                className="rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
+              >
+                Annuleren
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
     </div>
   );
 }

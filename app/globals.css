@@ -35,13 +35,20 @@ html.font-arabic button {
   font-family: var(--font-arabic), "Noto Sans Arabic", "Segoe UI", sans-serif;
 }
 
-/* Tailwind v4 — visible text in form elements */
-input, textarea, select {
-  color: #111827;
-}
+/* Tailwind v4 — leesbare tekst in formuliervelden.
+   Deze regels MOETEN in @layer base staan: ongelaagde CSS wint altijd van
+   gelaagde CSS, dus buiten een layer zou `input { color }` elke Tailwind-
+   utility (die in @layer utilities zit) overrulen — ook `text-slate-100` op
+   een donkere achtergrond. In de base-layer blijven ze de standaard, maar
+   kan een expliciete text-*-class ze wel overschrijven. */
+@layer base {
+  input, textarea, select {
+    color: #111827;
+  }
 
-* {
-  color: inherit;
+  * {
+    color: inherit;
+  }
 }
 
 /* RTL layout support */
