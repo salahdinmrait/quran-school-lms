@@ -50,7 +50,8 @@ export default function BewerkGebruikerPage() {
   // Ouder-leerling koppeling state
   const [gekoppeld, setGekoppeld] = useState<Leerling[]>([]);
   const [alleLeerlingen, setAlleLeerlingen] = useState<Leerling[]>([]);
-  const [koppelId, setKoppelId] = useState("");
+  const [koppelZoek, setKoppelZoek] = useState("");
+  const [koppelIds, setKoppelIds] = useState<string[]>([]);
   const [koppeling, setKoppeling] = useState(false);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
@@ -151,28 +152,53 @@ export default function BewerkGebruikerPage() {
     }
   };
 
+  // Met 100+ leerlingen tonen we ze niet allemaal: pas na het typen van een
+  // zoekterm verschijnt er een korte trefferlijst.
+  const koppelQ = koppelZoek.trim().toLowerCase();
+  const kandidaten = alleLeerlingen.filter((l) => !koppelIds.includes(l.id));
+  const alleTreffers = koppelQ
+    ? kandidaten.filter(
+        (l) => l.name.toLowerCase().includes(koppelQ) || l.email.toLowerCase().includes(koppelQ)
+      )
+    : [];
+  const treffers = alleTreffers.slice(0, 8);
+  const restTreffers = alleTreffers.length - treffers.length;
+  const geselecteerd = koppelIds
+    .map((kid) => alleLeerlingen.find((l) => l.id === kid))
+    .filter((l): l is Leerling => !!l);
+
   const handleKoppel = async () => {
-    if (!koppelId) return;
+    if (koppelIds.length === 0) return;
     setKoppeling(true);
-    try {
-      const res = await fetch("/api/ouder/koppeling", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ouderId: id, leerlingId: koppelId }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      const toegevoegd = alleLeerlingen.find((l) => l.id === koppelId);
-      if (toegevoegd) {
-        setGekoppeld((prev) => [...prev, toegevoegd]);
-        setAlleLeerlingen((prev) => prev.filter((l) => l.id !== koppelId));
+
+    // Per kind apart: één kind kan al aan een andere ouder hangen (409) en dat
+    // mag de rest van de selectie niet blokkeren.
+    const gelukt: Leerling[] = [];
+    const mislukt: string[] = [];
+    for (const kind of geselecteerd) {
+      try {
+        const res = await fetch("/api/ouder/koppeling", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ouderId: id, leerlingId: kind.id }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        gelukt.push(kind);
+      } catch (err) {
+        mislukt.push(`${kind.name}: ${err instanceof Error ? err.message : "koppelen mislukt"}`);
       }
-      setKoppelId("");
-      toast.success("Kind gekoppeld.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Koppelen mislukt.");
-    } finally {
-      setKoppeling(false);
     }
+
+    if (gelukt.length > 0) {
+      const geluktIds = new Set(gelukt.map((g) => g.id));
+      setGekoppeld((prev) => [...prev, ...gelukt].sort((a, b) => a.name.localeCompare(b.name)));
+      setAlleLeerlingen((prev) => prev.filter((l) => !geluktIds.has(l.id)));
+      setKoppelIds((prev) => prev.filter((kid) => !geluktIds.has(kid)));
+      toast.success(gelukt.length === 1 ? "Kind gekoppeld." : `${gelukt.length} kinderen gekoppeld.`);
+    }
+    setKoppelZoek("");
+    for (const m of mislukt) toast.error(m);
+    setKoppeling(false);
   };
 
   const handleOntkoppel = async (leerlingId: string) => {
@@ -391,28 +417,71 @@ export default function BewerkGebruikerPage() {
 
             {/* Add new link */}
             {alleLeerlingen.length > 0 && (
-              <div className="flex gap-2 pt-2 border-t border-gray-100">
-                <select
-                  value={koppelId}
-                  onChange={(e) => setKoppelId(e.target.value)}
-                  className="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">— Selecteer leerling —</option>
-                  {alleLeerlingen.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <Label htmlFor="koppelZoek">Kind koppelen</Label>
+                <Input
+                  id="koppelZoek"
+                  value={koppelZoek}
+                  onChange={(e) => setKoppelZoek(e.target.value)}
+                  placeholder="Zoek op naam of e-mail…"
+                  autoComplete="off"
+                />
+
+                {koppelQ.length > 0 && (
+                  treffers.length === 0 ? (
+                    <p className="text-sm text-gray-400 italic">Geen leerling gevonden.</p>
+                  ) : (
+                    <ul className="rounded-md border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                      {treffers.map((l) => (
+                        <li key={l.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKoppelIds((prev) => [...prev, l.id]);
+                              setKoppelZoek("");
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-green-50 focus:bg-green-50 focus:outline-none"
+                          >
+                            <span className="block text-sm text-gray-900">{l.name}</span>
+                            <span className="block text-xs text-gray-500">{l.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                      {restTreffers > 0 && (
+                        <li className="px-3 py-2 text-xs text-gray-400">
+                          Nog {restTreffers} andere{restTreffers === 1 ? "" : "n"} — typ verder om te verfijnen.
+                        </li>
+                      )}
+                    </ul>
+                  )
+                )}
+
+                {geselecteerd.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {geselecteerd.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => setKoppelIds((prev) => prev.filter((kid) => kid !== l.id))}
+                        className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-800 hover:bg-green-100"
+                      >
+                        {l.name} ✕
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <Button
                   type="button"
                   onClick={handleKoppel}
-                  disabled={!koppelId || koppeling}
-                  className="bg-green-700 hover:bg-green-800 text-white shrink-0"
+                  disabled={geselecteerd.length === 0 || koppeling}
+                  className="bg-green-700 hover:bg-green-800 text-white"
                 >
                   {koppeling
                     ? <Loader2 className="h-4 w-4 animate-spin" />
                     : <UserPlus className="h-4 w-4" />
                   }
-                  Koppelen
+                  {geselecteerd.length > 1 ? `${geselecteerd.length} kinderen koppelen` : "Koppelen"}
                 </Button>
               </div>
             )}

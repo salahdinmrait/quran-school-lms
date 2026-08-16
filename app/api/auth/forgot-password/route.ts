@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   await sendMail({
     to: gebruiker.email,
     subject: "Wachtwoord opnieuw instellen — Jadwal",
-    html: passwordResetEmail(gebruiker.name, resetUrl),
+    html: passwordResetEmail(gebruiker.name, resetUrl, gebruiker.email),
   });
 
   return NextResponse.json({ success: true });

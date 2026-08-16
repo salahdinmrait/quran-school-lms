@@ -339,8 +339,26 @@ Templates:
 - **`welkomstEmail()`** — gebruikt bij Excel-import: uitleg over het Jadwal-
   account, e-mail + tijdelijk wachtwoord, knop "Kies je eigen wachtwoord"
   (7 dagen geldig), link naar de webapp (`WEBAPP_URL`).
-- Bestaande reset-mailtemplate — gebruikt door de klassieke
-  "wachtwoord vergeten"-flow (§9), 1 uur geldig.
+- **`passwordResetEmail()`** — de klassieke "wachtwoord vergeten"-flow (§9),
+  1 uur geldig.
+- **`berichtNotificatieEmail()`** — melding bij een nieuw bericht.
+
+### Huisstijl van de mails
+
+Alle drie de templates delen één `mailLayout()`-functie met de Jadwal-
+huisstijl: table-based HTML met inline styles (600px, mobiele fallback onder
+620px, Outlook-proof knoppen), terracotta accent `#9D5148` op bone `#FAF7F2` —
+dezelfde kleuren als `lib/theme.ts` in de app-repo, zodat mail en app één
+geheel vormen. Hulpfuncties: `alinea()`, `kleineTekst()`, `paneel()` (uitgelicht
+blok met labelkop) en `knop()`.
+
+Twee dingen om te weten:
+- Namen en schoolnamen komen uit vrije invoer (o.a. de Excel-import) en worden
+  door `esc()` ge-escaped voordat ze in de HTML belanden.
+- De footer toont alleen een postadres als **`MAIL_AFZENDER_ADRES`** is gezet.
+  Is die leeg, dan staat er geen adres in de mail — er wordt bewust geen adres
+  verzonnen. Voor transactionele mail is dit niet verplicht; zet het wel als je
+  ooit nieuwsbrieven gaat sturen.
 
 Setup-stappen (domein kopen, Resend-account, DNS/SPF/DKIM, API-key) staan in
 `Desktop\QuranMagister\INSTRUCTIES-EMAIL-EN-BACKUP.md`.
@@ -482,6 +500,7 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `DEVELOPER_SECRET` | Wachtwoord voor `/dev` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Resend SMTP-interface voor alle uitgaande mail |
 | `WEBAPP_URL` | Link naar de webapp in de welkomstmail |
+| `MAIL_AFZENDER_ADRES` | Optioneel — postadres in de mailfooter; leeg = geen adres tonen (§8) |
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
 | `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig |
