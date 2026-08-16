@@ -273,7 +273,7 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 |---|---|---|
 | `api/dev/login` | POST | Inloggen met `DEVELOPER_SECRET` (rate-limited) |
 | `api/dev/scholen` | GET/POST | Scholen listen / nieuwe school aanmaken |
-| `api/dev/scholen/[id]` | GET/PUT | Schooldetails / (de)activeren |
+| `api/dev/scholen/[id]` | GET/PATCH/DELETE | Schooldetails / (de)activeren / **definitief verwijderen** (zie §13) |
 | `api/dev/scholen/[id]/accounts` | GET | Alle accounts van die school |
 | `api/dev/scholen/[id]/import` | POST | **Excel bulk-import**, zie §7 |
 | `api/dev/import-template` | GET | Download het Excel-sjabloon |
@@ -294,7 +294,8 @@ Functionaliteit op `/dev`:
 - **Scholen overzicht + nieuwe school aanmaken** (naam, slug, contactgegevens,
   optioneel meteen een eerste admin).
 - **Schoolpagina** (`/dev/scholen/[id]`): accountlijst, school (de)activeren,
-  en de Excel-import.
+  de Excel-import, en onderaan een **Gevarenzone** om de school definitief te
+  verwijderen (zie §13).
 
 ### Excel-import (gebruikers in bulk aanmaken)
 
@@ -442,6 +443,29 @@ Er is **bewust geen terugzet-knop** — dit is een vaste productieafspraak.
 
 Een kind heeft **maximaal 1 ouder-account** (`OuderLeerling.leerlingId` is
 `@unique`) — ook een vaste afspraak, niet zomaar in de code te herkennen.
+
+### Een hele school definitief verwijderen
+
+`DELETE /api/dev/scholen/[id]` (dev-console, Gevarenzone onderaan de
+schoolpagina) verwijdert de school **en alle bijbehorende data** echt uit de
+database: accounts, klassen, vakken, lessen, cijfers, huiswerk, inleveringen,
+aanwezigheid, berichten, dossiers, hifdh-profielen, studiemateriaal en
+koppelingen. Dit is géén soft delete en er is geen terugzet-knop — herstel kan
+alleen nog uit een nachtelijke backup van vóór het verwijderen (§11).
+
+Beveiliging en werking:
+- alleen bereikbaar met dev-authenticatie (`isDevAuthenticated()`);
+- de aanroeper moet de **slug van de school exact meesturen** in de body
+  (`{ "bevestiging": "<slug>" }`); de UI laat je die overtypen;
+- de opschoning gebeurt in foreign-key-veilige volgorde (kinderen eerst,
+  `Bericht.replyToId` wordt eerst losgeknipt omdat die naar zichzelf verwijst);
+- bewust **geen** lange transactie: die is op serverless Neon kwetsbaar voor
+  timeouts. Bij een halve mislukking is de route gewoon opnieuw aan te roepen —
+  al verwijderde rijen zijn dan een no-op.
+
+**Deactiveren blijft de normale route.** Definitief verwijderen is bedoeld voor
+testscholen en voor een school die stopt en om verwijdering van haar gegevens
+vraagt (AVG-recht op verwijdering).
 
 ## 14. Alle environment-variabelen
 
