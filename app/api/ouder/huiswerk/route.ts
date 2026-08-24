@@ -25,14 +25,21 @@ export async function GET() {
               },
             },
           },
+          // Gericht huiswerk hoort alleen bij het kind waarvoor het bedoeld is;
+          // leeg = voor iedereen met dat vak. Dezelfde regel als bij de leerling.
+          OR: [
+            { doelLeerlingen: { none: {} } },
+            { doelLeerlingen: { some: { leerlingId: k.leerlingId } } },
+          ],
         },
-        orderBy: { deadline: "asc" },
+        orderBy: [{ les: { datum: "desc" } }, { id: "desc" }],
         include: {
           vak: { select: { naam: true, categorie: true } },
+          les: { select: { id: true, datum: true } },
           inleveringen: {
             where: { leerlingId: k.leerlingId },
             select: {
-              inhoud: true, createdAt: true, opmerking: true, opmerkingOp: true,
+              id: true, inhoud: true, createdAt: true, opmerking: true, opmerkingOp: true,
               bijlageNaam: true,
             },
           },
@@ -45,11 +52,12 @@ export async function GET() {
           id: hw.id,
           titel: hw.titel,
           beschrijving: hw.beschrijving,
-          deadline: hw.deadline,
           vak: hw.vak,
+          lesId: hw.lesId,
+          lesDatum: hw.les?.datum.toISOString() ?? null,
           bijlageNaam: hw.bijlageNaam ?? null,
           hasBijlage: !!hw.bijlageNaam,
-          ingeLeverd: hw.inleveringen.length > 0,
+          afgevinkt: hw.inleveringen.length > 0,
           inlevering: hw.inleveringen[0]
             ? { ...hw.inleveringen[0], hasBijlage: !!hw.inleveringen[0].bijlageNaam }
             : null,

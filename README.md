@@ -105,18 +105,25 @@ school aansluit:
 3. **Bulk-import** — wij downloaden op de schoolpagina in `/dev` de Excel-
    template, vullen die met de aangeleverde gegevens en uploaden het bestand.
    Zie [§7 Excel-import](#excel-import-gebruikers-in-bulk-aanmaken) voor de
-   details. Elke rij wordt een account met een gegenereerd wachtwoord en een
-   welkomstmail.
-4. **Structuur inrichten** — via de webapp (ingelogd als de admin van de
+   details. Elke rij wordt een account. **Er gaat bij de import bewust geen
+   mail uit.**
+4. **Inloggegevens versturen** — op dezelfde schoolpagina in `/dev` staat een
+   blok met drie tellers (accounts klaar / al verstuurd / nog niet verstuurd)
+   en de knop **"Stuur inloggegevens (N)"**, met bevestiging. Pas dan krijgt
+   iedereen een vers tijdelijk wachtwoord en een welkomstmail. Wie al een mail
+   heeft gehad wordt overgeslagen — dat staat als
+   `PasswordResetToken.verstuurdOp` in de database, dus een refresh, een
+   dubbele klik of een tweede import kan nooit opnieuw mailen.
+5. **Structuur inrichten** — via de webapp (ingelogd als de admin van de
    school): klassen aanmaken, vakken aanmaken, leerlingen/docenten aan klassen
    koppelen, vakken aan klassen koppelen, rooster (lessen) inplannen.
    Dit gaat via de normale admin-schermen in de app, niet via `/dev`.
-5. **Gebruikers loggen in** — iedereen klikt de link in hun welkomstmail (of
+6. **Gebruikers loggen in** — iedereen klikt de link in hun welkomstmail (of
    logt direct in met het meegestuurde wachtwoord), en kan optioneel meteen
    een eigen wachtwoord kiezen via de link (7 dagen geldig).
-6. **Dagelijks gebruik** — huiswerk, cijfers, aanwezigheid, berichten, rooster;
+7. **Dagelijks gebruik** — huiswerk, cijfers, aanwezigheid, berichten, rooster;
    alles loopt via de API-routes in §6, met rol- en school-scoping.
-7. **Achtergrond, automatisch, geen actie nodig:** elke nacht 03:00 UTC een
+8. **Achtergrond, automatisch, geen actie nodig:** elke nacht 03:00 UTC een
    versleutelde volledige backup (§11); rate limiting beschermt login/reset
    tegen brute-force (§10).
 
@@ -134,7 +141,7 @@ wachtwoord-hashformaat (bcrypt, 12 rounds) kijken:
   `verwijderdOp` (gearchiveerde accounts kunnen niet inloggen), vergelijkt het
   wachtwoord met bcrypt, en checkt eerst de rate limiter (§10).
 - Sessie-strategie: JWT (`session.strategy = "jwt"`), ondertekend met
-  `NEXTAUTH_SECRET`. De sessie bevat `id`, `role`, `schoolId`, `isVolwassen`.
+  `NEXTAUTH_SECRET`. De sessie bevat `id`, `role`, `schoolId`.
 - Gebruikt door de oude web-UI en door API-routes die vanuit de browser worden
   aangeroepen (sessie-cookie wordt automatisch meegestuurd).
 
@@ -167,13 +174,13 @@ wachtwoord-hashformaat (bcrypt, 12 rounds) kijken:
 | Model | Waarvoor |
 |---|---|
 | `School` | Eén rij per schoolomgeving (multi-tenant root) |
-| `User` | Alle accounts (rol in `role`: ADMIN/DOCENT/LEERLING/OUDER); `telefoon`, `actief`, `isVolwassen`, `verwijderdOp` (soft delete) |
+| `User` | Alle accounts (rol in `role`: ADMIN/DOCENT/LEERLING/OUDER); `telefoon`, `actief`, `verwijderdOp` (soft delete). Er is géén leeftijdsonderscheid: elke leerling heeft dezelfde rechten |
 | `LeerlingDossier` | Vrije notities van docenten/admins over een leerling, blijvend |
 | `Klas`, `Vak`, `KlasVak`, `KlasDocent`, `KlasLeerling` | Structuur en koppelingen |
 | `Cijfer` | Cijfers per leerling/vak, met optionele opmerking + bijlage |
 | `Les` | Roosterregel (datum/tijd/lokaal/klas/vak), met optionele bijlage |
 | `Aanwezigheid` | Status per leerling per les (AANWEZIG/AFWEZIG/TE_LAAT/GEOORLOOFD) |
-| `Huiswerk`, `Inlevering`, `HuiswerkLeerling` | Huiswerk, inleveringen (+docent-feedback), optioneel doelgroep-leerlingen |
+| `Huiswerk`, `Inlevering`, `HuiswerkLeerling` | Huiswerk (altijd aan een les gekoppeld; `deadline` is vervallen en blijft alleen als historische kolom), `Inlevering` = het aftekenen door de docent (+feedback), `HuiswerkLeerling` = doelgroep bij huiswerk voor één of enkele leerlingen (leeg = hele klas) |
 | `Bericht` | Berichten tussen gebruikers, met threads (`replyToId`) en optionele bijlage |
 | `StudieMateriaal` | Gedeeld materiaal (bestand of link) per klas/vak |
 | `OuderLeerling` | Koppeling ouder↔kind; **max 1 ouder per kind** (`@@unique([leerlingId])`) |
@@ -230,8 +237,8 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | `api/docent/klassen` | Eigen klassen |
 | `api/docent/lessen` | Eigen roosterregels (incl. `vak`, `hasBijlage`, `huiswerkAantal`; zonder `bijlageData`) |
 | `api/docent/cijfers`, `/cijfers/[id]` | Cijfers invoeren/bewerken |
-| `api/docent/absentie` | Aanwezigheid registreren |
-| `api/docent/huiswerk`, `/huiswerk/[id]` | Huiswerk aanmaken/bewerken |
+| `api/docent/absentie` | Aanwezigheid registreren vanuit een les (alleen lessen van een eigen klas) |
+| `api/docent/huiswerk`, `/huiswerk/[id]` | Huiswerk aanmaken/bewerken/verwijderen. POST vereist een `lesId` van een eigen klas; optioneel `leerlingIds` voor huiswerk aan één of enkele leerlingen. DELETE ruimt ook doelleerlingen en afvinkingen op |
 | `api/docent/huiswerk/afvinken` | Inlevering aftekenen + feedback |
 | `api/docent/huiswerk/inleveringen/[id]` | Eén inlevering bekijken |
 | `api/docent/statistieken` | Overzicht per klas/vak |
@@ -241,7 +248,7 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 |---|---|
 | `api/leerling/dashboard` | Startscherm-overzicht |
 | `api/leerling/cijfers`, `/ranking` | Eigen cijfers + klassement |
-| `api/leerling/huiswerk`, `/inlevering` | Huiswerk bekijken + inleveren |
+| `api/leerling/huiswerk` | Huiswerk bekijken (alleen huiswerk voor de eigen klas of voor deze leerling persoonlijk). Inleveren bestaat niet: de docent vinkt af |
 | `api/leerling/lessen`, `/absentie` | Rooster + eigen aanwezigheid |
 | `api/leerling/contacten` | Beschikbare berichten-contacten |
 
@@ -275,7 +282,8 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | `api/dev/scholen` | GET/POST | Scholen listen / nieuwe school aanmaken |
 | `api/dev/scholen/[id]` | GET/PATCH/DELETE | Schooldetails / (de)activeren / **definitief verwijderen** (zie §13) |
 | `api/dev/scholen/[id]/accounts` | GET | Alle accounts van die school |
-| `api/dev/scholen/[id]/import` | POST | **Excel bulk-import**, zie §7 |
+| `api/dev/scholen/[id]/import` | POST | **Excel bulk-import** (maakt alleen accounts aan, mailt niet), zie §7 |
+| `api/dev/scholen/[id]/inloggegevens` | GET/POST | Tellers opvragen / **inloggegevens versturen** — de aparte, bewuste mailactie |
 | `api/dev/import-template` | GET | Download het Excel-sjabloon |
 
 ### Achtergrondtaken
@@ -311,18 +319,38 @@ Functionaliteit op `/dev`:
    - validatie: voornaam verplicht, geldig e-mailformaat, geldige rol, geen
      dubbele e-mails binnen het bestand;
    - bestaat het e-mailadres al in de DB → rij overgeslagen;
-   - anders: account aangemaakt (`name` = voornaam + achternaam, wachtwoord
-     via `generatePassword()`, bcrypt 12 rounds, `telefoon`, `schoolId`),
-     een `PasswordResetToken` met **7 dagen** geldigheid, en een welkomstmail
-     (§8) met inloggegevens + "kies je eigen wachtwoord"-link.
-   - 600ms pauze tussen mails (Resend-snelheidslimiet); `maxDuration = 300`
-     (Vercel), dus **±150 rijen per upload** is de praktische bovengrens.
+   - anders: account aangemaakt (`name` = voornaam + achternaam, een
+     onbruikbaar startwachtwoord via `generatePassword()` uit
+     `lib/wachtwoord.ts`, bcrypt 12 rounds, `telefoon`, `schoolId`).
+   - **Er gaat hier geen mail uit** en er wordt geen wachtwoord getoond:
+     niemand kent dat startwachtwoord, ook wij niet.
 5. Resultaat per rij terug in de UI: aangemaakt / overgeslagen / fout, met
-   reden. Gegenereerde wachtwoorden worden éénmalig getoond (staan ook in de
-   mail).
+   reden.
 
 De voorbeeldrij in het sjabloon (`ahmed@voorbeeld.nl`) wordt altijd
 overgeslagen, ook al staat dat adres niet in de database.
+
+### Inloggegevens versturen (aparte handeling)
+
+Mailen is losgekoppeld van importeren, zodat een refresh, een dubbele klik of
+een tweede import nooit per ongeluk opnieuw kan mailen. Op de schoolpagina in
+`/dev` staat een blok met drie tellers en de knop **"Stuur inloggegevens (N)"**
+met bevestigingsvraag.
+
+- `GET /api/dev/scholen/[id]/inloggegevens` → `{ klaar, alVerstuurd, nietVerstuurd }`.
+- `POST` daarop verstuurt alleen naar accounts die nog **geen** verstuurd token
+  hebben. Per persoon: een vers tijdelijk wachtwoord (opgeslagen als hash), een
+  nieuw `PasswordResetToken` van 7 dagen, de welkomstmail (§8) en pas daarna
+  `verstuurdOp = now()`. Mislukt een mail, dan blijft `verstuurdOp` leeg en gaat
+  de lus door met de rest; de mislukking komt terug in het resultaat.
+- De grens "al verstuurd" is dus een **databasefeit**
+  (`PasswordResetToken.verstuurdOp`), geen UI-status.
+- 600ms pauze tussen mails (Resend-snelheidslimiet); `maxDuration = 300`
+  (Vercel), dus **±150 mails per klik** is de praktische bovengrens — daarna
+  klik je gewoon nog een keer, de rest staat dan nog op "niet verstuurd".
+
+De logica staat in `lib/inloggegevens.ts`; `generatePassword()` staat één keer,
+in `lib/wachtwoord.ts`.
 
 ## 8. E-mail
 
@@ -336,9 +364,10 @@ gelogd** (`console.log`, zichtbaar in Vercel → Functions → Logs) — handig 
 lokaal testen zonder een echte mailserver.
 
 Templates:
-- **`welkomstEmail()`** — gebruikt bij Excel-import: uitleg over het Jadwal-
-  account, e-mail + tijdelijk wachtwoord, knop "Kies je eigen wachtwoord"
-  (7 dagen geldig), link naar de webapp (`WEBAPP_URL`).
+- **`welkomstEmail()`** — gebruikt bij het versturen van de inloggegevens
+  (niet bij de import zelf): uitleg over het Jadwal-account, e-mail +
+  tijdelijk wachtwoord, knop "Kies je eigen wachtwoord" (7 dagen geldig),
+  link naar de webapp (`WEBAPP_URL`).
 - **`passwordResetEmail()`** — de klassieke "wachtwoord vergeten"-flow (§9),
   1 uur geldig.
 

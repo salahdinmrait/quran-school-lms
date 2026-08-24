@@ -112,7 +112,6 @@ async function main() {
   ];
 
   // Build all huiswerk for all klassen
-  const huiswerkBatch: { titel: string; beschrijving: string; deadline: Date; vakId: string }[] = [];
   // We'll need to track (klasId, huiswerkIdx) for inleveringen later
   // So create per-klas first and collect ids
   const huiswerkItems: { id: string; vakId: string; klasId: string }[] = [];
@@ -123,11 +122,8 @@ async function main() {
       const vakId = klas.vakken.find((kv) => kv.vak.categorie === tmpl.cat)?.vak.id;
       if (!vakId) continue;
 
-      const deadlineDate = weekOffset(today, Math.floor(wi / 3) - 2);
-      deadlineDate.setDate(deadlineDate.getDate() + 6);
-
       const hw = await prisma.huiswerk.create({
-        data: { titel: tmpl.titel, beschrijving: tmpl.beschrijving, deadline: deadlineDate, vakId },
+        data: { titel: tmpl.titel, beschrijving: tmpl.beschrijving, vakId },
       });
       huiswerkItems.push({ id: hw.id, vakId, klasId: klas.id });
     }

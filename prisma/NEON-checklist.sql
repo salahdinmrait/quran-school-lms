@@ -5,7 +5,10 @@
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- ── 18+ zelfstandige leerling ───────────────────────────────────────────────
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isVolwassen" BOOLEAN NOT NULL DEFAULT false;
+-- VERVALLEN: het 18+/minderjarig-onderscheid bestaat niet meer. De kolom wordt
+-- weer verwijderd door NEON-taal-en-18plus.sql. Deze regel staat er alleen nog
+-- als historisch verslag van wat er ooit is gedraaid — niet opnieuw uitvoeren.
+-- ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isVolwassen" BOOLEAN NOT NULL DEFAULT false;
 
 -- ── Cijfer: losse opmerking + bijlage ───────────────────────────────────────
 ALTER TABLE "Cijfer" ADD COLUMN IF NOT EXISTS "opmerking"   TEXT;

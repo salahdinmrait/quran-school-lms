@@ -67,9 +67,19 @@ export default function SchoolDetailPage() {
       email: string;
       status: "aangemaakt" | "overgeslagen" | "fout";
       reden?: string;
-      wachtwoord?: string;
     }[];
   } | null>(null);
+
+  // Inloggegevens versturen — bewust los van de import
+  const [mailStatus, setMailStatus] = useState<{
+    klaar: number;
+    alVerstuurd: number;
+    nietVerstuurd: number;
+  } | null>(null);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailLoading, setMailLoading] = useState(false);
+  const [mailError, setMailError] = useState<string | null>(null);
+  const [mailKlaar, setMailKlaar] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetch(`/api/dev/scholen/${id}`)
@@ -78,7 +88,15 @@ export default function SchoolDetailPage() {
       .catch((e: Error) => setError(e.message));
   }, [id]);
 
+  const loadMailStatus = useCallback(() => {
+    fetch(`/api/dev/scholen/${id}/inloggegevens`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setMailStatus(d))
+      .catch(() => {});
+  }, [id]);
+
   useEffect(load, [load]);
+  useEffect(loadMailStatus, [loadMailStatus]);
 
   async function toggleActief() {
     if (!school) return;
@@ -137,6 +155,7 @@ export default function SchoolDetailPage() {
       setCreatedCreds((prev) => [...prev, ...data.created]);
       setAccForm({ name: "", email: "", role: accForm.role, password: "" });
       load();
+      loadMailStatus();
     } finally {
       setAccLoading(false);
     }
@@ -163,10 +182,39 @@ export default function SchoolDetailPage() {
       setImportResult(data);
       setImportFile(null);
       load();
+      loadMailStatus();
     } catch {
       setImportError("Import mislukt — probeer het opnieuw");
     } finally {
       setImportLoading(false);
+    }
+  }
+
+  async function handleVerstuurInloggegevens() {
+    setMailError(null);
+    setMailKlaar(null);
+    setMailLoading(true);
+    try {
+      const res = await fetch(`/api/dev/scholen/${id}/inloggegevens`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMailError(data.error ?? "Versturen mislukt");
+        return;
+      }
+      setMailStatus({
+        klaar: data.klaar,
+        alVerstuurd: data.alVerstuurd,
+        nietVerstuurd: data.nietVerstuurd,
+      });
+      setMailKlaar(
+        `${data.verstuurd} verstuurd` +
+          (data.mislukt?.length ? ` · ${data.mislukt.length} mislukt` : "")
+      );
+      setMailOpen(false);
+    } catch {
+      setMailError("Versturen mislukt — probeer het opnieuw");
+    } finally {
+      setMailLoading(false);
     }
   }
 
@@ -312,8 +360,9 @@ export default function SchoolDetailPage() {
             <h2 className="font-medium">Gebruikers importeren (Excel)</h2>
             <p className="text-xs text-slate-400">
               Laat de school de template invullen en upload hem hier. Voor iedere rij wordt
-              een account aangemaakt en automatisch een welkomstmail met inloggegevens
-              verstuurd. Tip: splits lijsten groter dan ±150 rijen in meerdere bestanden.
+              een account aangemaakt. Er gaat <strong>geen</strong> mail uit — de
+              inloggegevens verstuur je daarna zelf hieronder. Tip: splits lijsten groter
+              dan ±150 rijen in meerdere bestanden.
             </p>
             <a
               href="/api/dev/import-template"
@@ -366,9 +415,7 @@ export default function SchoolDetailPage() {
                         <td className="py-1 pr-2 font-mono">{r.email || "—"}</td>
                         <td className="py-1">
                           {r.status === "aangemaakt" && (
-                            <span className="text-emerald-400">
-                              ✓ aangemaakt{r.wachtwoord ? ` · ww: ${r.wachtwoord}` : ""}
-                            </span>
+                            <span className="text-emerald-400">✓ aangemaakt</span>
                           )}
                           {r.status === "overgeslagen" && (
                             <span className="text-amber-400">− {r.reden ?? "overgeslagen"}</span>
@@ -383,11 +430,85 @@ export default function SchoolDetailPage() {
                 </table>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                De wachtwoorden hierboven zijn alleen nu zichtbaar — iedere gebruiker heeft
-                ze ook per e-mail ontvangen.
+                Deze accounts hebben nog geen inloggegevens ontvangen. Gebruik daarvoor
+                &quot;Inloggegevens versturen&quot; hieronder.
               </p>
             </div>
           )}
+
+          {/* ── Inloggegevens versturen ──────────────────────────────────────
+              Bewust een losse handeling: de import mailt niets. Wie al gemaild
+              is staat in de database, dus een refresh of een tweede klik kan
+              nooit dezelfde mensen opnieuw aanschrijven. */}
+          <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h2 className="font-medium">Inloggegevens versturen</h2>
+            <p className="text-xs text-slate-400">
+              Stuurt iedereen die nog niets heeft gehad een welkomstmail met een tijdelijk
+              wachtwoord en een link (7 dagen geldig) om zelf een wachtwoord te kiezen. Wie
+              al gemaild is, wordt overgeslagen.
+            </p>
+
+            {mailStatus ? (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md border border-slate-800 bg-slate-950 p-2">
+                  <p className="text-lg font-semibold text-slate-100">{mailStatus.klaar}</p>
+                  <p className="text-[11px] text-slate-500">accounts klaar</p>
+                </div>
+                <div className="rounded-md border border-slate-800 bg-slate-950 p-2">
+                  <p className="text-lg font-semibold text-emerald-400">{mailStatus.alVerstuurd}</p>
+                  <p className="text-[11px] text-slate-500">al verstuurd</p>
+                </div>
+                <div className="rounded-md border border-slate-800 bg-slate-950 p-2">
+                  <p className="text-lg font-semibold text-amber-400">{mailStatus.nietVerstuurd}</p>
+                  <p className="text-[11px] text-slate-500">nog niet verstuurd</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Tellers laden...</p>
+            )}
+
+            {mailError && <p className="text-sm text-red-400">{mailError}</p>}
+            {mailKlaar && <p className="text-sm text-emerald-400">{mailKlaar}</p>}
+
+            <button
+              type="button"
+              onClick={() => { setMailKlaar(null); setMailOpen(true); }}
+              disabled={mailLoading || !mailStatus || mailStatus.nietVerstuurd === 0}
+              className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {mailLoading
+                ? "Bezig met versturen... (kan even duren)"
+                : `Stuur inloggegevens (${mailStatus?.nietVerstuurd ?? 0})`}
+            </button>
+
+            {mailOpen && mailStatus && (
+              <div className="rounded-md border border-amber-700 bg-amber-950 p-3">
+                <p className="text-sm text-amber-200">
+                  Je staat op het punt {mailStatus.nietVerstuurd}{" "}
+                  {mailStatus.nietVerstuurd === 1 ? "persoon" : "mensen"} hun inloggegevens te
+                  mailen. Ze krijgen een nieuw tijdelijk wachtwoord. Doorgaan?
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleVerstuurInloggegevens}
+                    disabled={mailLoading}
+                    className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+                  >
+                    {mailLoading ? "Bezig..." : "Ja, versturen"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMailOpen(false)}
+                    disabled={mailLoading}
+                    className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    Annuleren
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {createdCreds.length > 0 && (
             <div className="rounded-lg border border-amber-700 bg-amber-950 p-4">

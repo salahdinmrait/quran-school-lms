@@ -37,7 +37,6 @@ interface HuiswerkItem {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   bijlageNaam: string | null;
   hasBijlage: boolean;
   vak: Vak;
@@ -48,7 +47,7 @@ interface HuiswerkItem {
 interface RankingItem {
   positie: number;
   leerling: LeerlingInfo;
-  aantalIngeleverd: number;
+  aantalAfgevinkt: number;
   totaal: number;
   percentage: number;
 }
@@ -75,7 +74,7 @@ export default function HuiswerkPage() {
   const [selectedKlasRanking, setSelectedKlasRanking] = useState<string>("");
 
   const [form, setForm] = useState({
-    titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "",
+    titel: "", beschrijving: "", vakId: "", lesId: "", selectedKlasId: "",
   });
   // Bijlage: after Vercel Blob upload we store the public URL
   const [bijlage, setBijlage] = useState<{ naam: string; url: string; type: string } | null>(null);
@@ -202,7 +201,12 @@ export default function HuiswerkPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.titel || !form.vakId) { toast.error("Titel en vak zijn verplicht."); return; }
+    // Huiswerk hoort altijd bij een les: de lesdatum bepaalt wanneer het aan de
+    // beurt is, daarom is er geen aparte deadline meer.
+    if (!form.titel || !form.vakId || !form.lesId) {
+      toast.error("Titel, vak en les zijn verplicht.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/docent/huiswerk", {
@@ -210,7 +214,7 @@ export default function HuiswerkPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titel: form.titel, beschrijving: form.beschrijving || null,
-          deadline: form.deadline || null, vakId: form.vakId, lesId: form.lesId || null,
+          vakId: form.vakId, lesId: form.lesId,
           bijlageNaam: bijlage?.naam ?? null,
           bijlageUrl:  bijlage?.url  ?? null,
           bijlageType: bijlage?.type ?? null,
@@ -220,7 +224,7 @@ export default function HuiswerkPage() {
       if (!res.ok) throw new Error(data.error);
       toast.success("Huiswerk aangemaakt.");
       setHuiswerk((prev) => [data, ...prev]);
-      setForm({ titel: "", beschrijving: "", deadline: "", vakId: "", lesId: "", selectedKlasId: "" });
+      setForm({ titel: "", beschrijving: "", vakId: "", lesId: "", selectedKlasId: "" });
       setBijlage(null);
       setBijlageProgress(0);
       setShowForm(false);
@@ -345,7 +349,7 @@ export default function HuiswerkPage() {
                     <span className="text-xl w-8 text-center">{MEDAL[item.positie - 1]}</span>
                     <span className="flex-1 text-sm font-medium text-gray-900">{item.leerling.name}</span>
                     <p className="text-sm font-bold text-green-700">{item.percentage}%</p>
-                    <p className="text-xs text-gray-400">{item.aantalIngeleverd}/{item.totaal}</p>
+                    <p className="text-xs text-gray-400">{item.aantalAfgevinkt}/{item.totaal}</p>
                   </div>
                 ))}
               </div>
@@ -403,14 +407,11 @@ export default function HuiswerkPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
-                  <Input type="date" name="deadline" value={form.deadline} onChange={handleChange} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Koppel aan les (optioneel)</label>
-                  <select name="lesId" value={form.lesId} onChange={handleChange}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                    <option value="">— Geen —</option>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Les *</label>
+                  <select name="lesId" value={form.lesId} onChange={handleChange} required
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                    disabled={klassenDirect.length === 0}>
+                    <option value="">— Selecteer les —</option>
                     {lessenForKlas.map((l) => (
                       <option key={l.id} value={l.id}>
                         {formatDate(l.datum)} {l.begintijd}–{l.eindtijd}
@@ -509,7 +510,6 @@ export default function HuiswerkPage() {
                         <VakBadge categorie={hw.vak.categorie as VakCategorie} />
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                        {hw.deadline && <span>Deadline: {formatDate(hw.deadline)}</span>}
                         {hw.les && <span>Les: {formatDate(hw.les.datum)}</span>}
                         {hw.hasBijlage && hw.bijlageNaam && (
                           <a

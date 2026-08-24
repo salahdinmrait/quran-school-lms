@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { toegestaneOntvangerIds } from "@/lib/contacten";
 
 // GET /api/berichten — inbox + deduplicated verzonden
 export async function GET() {
@@ -99,8 +100,11 @@ export async function GET() {
  *
  * Role rules:
  *   ADMIN/DOCENT: all doelTypes allowed
- *   LEERLING: alleen reageren (replyToId verplicht) naar DOCENT/ADMIN —
- *             behalve 18+ (isVolwassen): die mag ook zelf een gesprek starten.
+ *   LEERLING: mag zelf een gesprek starten met een docent van de eigen klas of
+ *             met het beheer, en mag reageren. Geen leeftijdsonderscheid.
+ *
+ * Ontvangers worden bij LEERLING en OUDER altijd getoetst aan de
+ * relatiestructuur (lib/contacten.ts) — de schoolgrens alleen is niet genoeg.
  */
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -129,15 +133,32 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Leerling-regel: alleen reageren (replyToId), tenzij 18+ → mag zelf starten.
+  // Groepsberichten (hele klas / alle ouders) zijn niet voor leerlingen
   const isLeerling = role === "LEERLING";
-  const leerlingMagInitieren = isLeerling && session.user.isVolwassen;
-  if (isLeerling && !replyToId && !leerlingMagInitieren) {
-    return NextResponse.json(
-      { error: "Leerlingen kunnen alleen reageren op een ontvangen bericht" },
-      { status: 403 }
-    );
+
+  // Een docent mag alleen een klas aanschrijven waar hij zelf aan gekoppeld is;
+  // een admin mag elke klas van de eigen school. Zonder deze check was het
+  // schoolId genoeg en kon een docent elke klas van de school mailen.
+  async function klasVanDezeGebruiker(klasId: string) {
+    return prisma.klas.findFirst({
+      where: {
+        id: klasId,
+        verwijderdOp: null,
+        schoolId: session!.user.schoolId ?? null,
+        ...(role === "DOCENT" ? { docenten: { some: { docentId: verzenderId } } } : {}),
+      },
+      include: { leerlingen: { select: { leerlingId: true } } },
+    });
   }
+
+  // Leerlingen en ouders mogen alleen schrijven naar mensen die via de gewone
+  // relatiestructuur bereikbaar zijn: docenten van de eigen klas(sen) en het
+  // beheer van de school. null = geen beperking (docent/admin).
+  const toegestaan = await toegestaneOntvangerIds(
+    verzenderId,
+    role,
+    session.user.schoolId ?? null
+  );
 
   let ontvangerIds: string[] = [];
   let doelLabel: string = "";
@@ -157,14 +178,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen geldige ontvangers gevonden" }, { status: 404 });
     }
 
-    // LEERLING can only send to DOCENT/ADMIN
-    if (role === "LEERLING") {
-      const invalidTargets = users.filter(
-        (u) => u.role !== "DOCENT" && u.role !== "ADMIN"
-      );
-      if (invalidTargets.length > 0) {
+    // Leerling/ouder: elke ontvanger moet in de eigen contactenlijst staan.
+    // Dit vangt ook het geval af waarin iemand langs de UI om een willekeurig
+    // id meestuurt van een docent van een andere klas.
+    if (toegestaan) {
+      const buitenBereik = users.filter((u) => !toegestaan.has(u.id));
+      if (buitenBereik.length > 0) {
         return NextResponse.json(
-          { error: "Leerlingen kunnen alleen reageren naar docenten of beheerders" },
+          { error: "Je kunt alleen berichten sturen naar je eigen docenten of het beheer" },
           { status: 403 }
         );
       }
@@ -174,54 +195,33 @@ export async function POST(req: NextRequest) {
     doelLabel = users.length === 1 ? users[0].name : `${users.length} ontvangers`;
 
   } else if (doelType === "KLAS_LEERLINGEN") {
-    if (role === "LEERLING") {
+    if (isLeerling) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
-    const klas = await prisma.klas.findUnique({
-      where: { id: doelId },
-      include: { leerlingen: { select: { leerlingId: true } } },
-    });
-    if (!klas || klas.schoolId !== (session.user.schoolId ?? null)) {
+    const klas = await klasVanDezeGebruiker(doelId);
+    if (!klas) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
     }
     ontvangerIds = klas.leerlingen.map((kl) => kl.leerlingId);
     doelLabel = `Klas ${klas.naam} (leerlingen)`;
 
   } else if (doelType === "KLAS_OUDERS") {
-    if (role === "LEERLING") {
+    if (isLeerling) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
-    const klas = await prisma.klas.findUnique({
-      where: { id: doelId },
-      include: {
-        leerlingen: {
-          include: {
-            leerling: {
-              include: {
-                kindVan: { select: { ouderId: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-    if (!klas || klas.schoolId !== (session.user.schoolId ?? null)) {
+    const klas = await klasVanDezeGebruiker(doelId);
+    if (!klas) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
     }
-    const ouderIds = new Set<string>();
-    for (const { leerling } of klas.leerlingen) {
-      for (const { ouderId } of leerling.kindVan) {
-        ouderIds.add(ouderId);
-      }
-    }
-    ontvangerIds = Array.from(ouderIds);
+    const ouders = await prisma.ouderLeerling.findMany({
+      where: { leerlingId: { in: klas.leerlingen.map((kl) => kl.leerlingId) } },
+      select: { ouderId: true },
+    });
+    ontvangerIds = Array.from(new Set(ouders.map((o) => o.ouderId)));
     doelLabel = `Ouders van klas ${klas.naam}`;
 
   } else if (doelType === "ADMINS") {
-    // Docent of 18+-leerling stuurt naar het beheer (alle admins van de school)
-    if (isLeerling && !leerlingMagInitieren) {
-      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
-    }
+    // Iedereen binnen de school mag het beheer aanschrijven
     const admins = await prisma.user.findMany({
       where: { role: "ADMIN", actief: true, schoolId: session.user.schoolId ?? null },
       select: { id: true },

@@ -9,7 +9,6 @@ export interface MobileTokenPayload {
   email: string;
   role: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
   schoolId: string | null;
-  isVolwassen: boolean;
 }
 
 function secretKey() {
@@ -41,7 +40,6 @@ export async function verifyMobileToken(token: string): Promise<MobileTokenPaylo
       email: (payload.email as string) ?? "",
       role: payload.role as MobileTokenPayload["role"],
       schoolId: (payload.schoolId as string | null) ?? null,
-      isVolwassen: (payload.isVolwassen as boolean) ?? false,
     };
   } catch {
     return null;

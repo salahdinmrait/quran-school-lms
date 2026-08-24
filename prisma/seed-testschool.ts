@@ -1,7 +1,7 @@
 /**
  * Testschool demo-seed — vult de bestaande testschool met realistische demo-data:
  * lesrooster, huiswerk (met inleveringen), berichten heen-en-weer, cijfers,
- * aanwezigheid en studiemateriaal. Maakt ook 2 18+ leerling-accounts.
+ * aanwezigheid en studiemateriaal. Maakt ook 2 leerlingen zonder ouder-account.
  *
  * Draai tegen Neon (productie):
  *   DATABASE_URL="postgresql://...neon..." npx tsx prisma/seed-testschool.ts
@@ -80,11 +80,11 @@ async function main() {
     await ensureVak("Memorisatie", "HIFZ"),
   ];
 
-  async function ensureUser(name: string, email: string, role: string, isVolwassen = false) {
+  async function ensureUser(name: string, email: string, role: string) {
     return prisma.user.upsert({
       where: { email },
-      create: { name, email, password: hash, role, schoolId, isVolwassen },
-      update: { name, role, schoolId, isVolwassen },
+      create: { name, email, password: hash, role, schoolId },
+      update: { name, role, schoolId },
     });
   }
   const emailBase = (s: string) => `${s}@${school.slug}.test`;
@@ -118,11 +118,15 @@ async function main() {
     }
   }
 
-  // ── 4. Twee 18+ leerlingen (zelfstandig, zonder ouder) ─────────────────────
-  const volwassen1 = await ensureUser("Amir (18+)", emailBase("amir.18plus"), "LEERLING", true);
-  const volwassen2 = await ensureUser("Salma (18+)", emailBase("salma.18plus"), "LEERLING", true);
-  leerlingen.push(volwassen1, volwassen2);
-  console.log(`👤  18+ accounts: ${volwassen1.email} / ${volwassen2.email}  (wachtwoord: ${PW})`);
+  // ── 4. Twee leerlingen zonder ouder-account ────────────────────────────────
+  // Rechten zijn identiek aan die van elke andere leerling; het onderscheid
+  // zit alleen in de testdata (geen gekoppelde ouder). De e-mailadressen
+  // blijven ongewijzigd, zodat een al gevulde testschool geen dubbele
+  // accounts krijgt.
+  const zelfstandig1 = await ensureUser("Amir Zelfstandig", emailBase("amir.18plus"), "LEERLING");
+  const zelfstandig2 = await ensureUser("Salma Zelfstandig", emailBase("salma.18plus"), "LEERLING");
+  leerlingen.push(zelfstandig1, zelfstandig2);
+  console.log(`👤  Zonder ouder: ${zelfstandig1.email} / ${zelfstandig2.email}  (wachtwoord: ${PW})`);
 
   // ── 5. Klassen met koppelingen ─────────────────────────────────────────────
   async function ensureKlas(naam: string) {
@@ -209,31 +213,30 @@ async function main() {
       const vak = kv.vak;
       const titels = hwTitels[vak.categorie] ?? ["Maak de opdracht"];
       for (let t = 0; t < titels.length; t++) {
-        const deadline = weekOffset(today, t === 0 ? 0 : 1);
+        // Huiswerk hangt aan een les; die lesdatum bepaalt wanneer het aan de
+        // beurt is. Er is geen aparte deadline meer.
         const lesVanVak = lesIds.find((l) => l.klasId === klas.id && l.vakId === vak.id);
         const hw = await prisma.huiswerk.create({
           data: {
             titel: titels[t],
             beschrijving:
               t === 0
-                ? "Lever je opname of antwoord in via de app."
+                ? "Oefen thuis en laat het in de les horen."
                 : "Bekijk de uitleg: https://example.com/uitleg en oefen thuis.",
-            deadline,
             vakId: vak.id,
             lesId: lesVanVak?.id ?? null,
           },
         });
         hwCount++;
-        // ~65% van de leerlingen levert in
+        // ~65% wordt door de docent afgevinkt ("✓"); de leerling levert zelf niets in
         for (const kl of klas.leerlingen) {
           if (Math.random() < 0.65) {
-            const eigen = Math.random() < 0.5;
             await prisma.inlevering.create({
               data: {
                 huiswerkId: hw.id,
                 leerlingId: kl.leerling.id,
-                inhoud: eigen ? "Klaar ustadh, ik heb het geoefend en opgenomen." : "✓",
-                ...(eigen && Math.random() < 0.5
+                inhoud: "✓",
+                ...(Math.random() < 0.5
                   ? { opmerking: "Goed gedaan! Let nog op je uitspraak.", opmerkingOp: new Date() }
                   : {}),
               },
@@ -244,7 +247,7 @@ async function main() {
       }
     }
   }
-  console.log(`   ✓ ${hwCount} huiswerk, ${invCount} inleveringen`);
+  console.log(`   ✓ ${hwCount} huiswerk, ${invCount} afgevinkt`);
 
   // ── 8. Berichten heen-en-weer ──────────────────────────────────────────────
   console.log("✉️   Berichten aanmaken…");
@@ -296,12 +299,12 @@ async function main() {
       berCount++;
     }
   }
-  // 18+ leerling → docent (initiatief)
+  // Leerling → docent (initiatief); elke leerling mag dat
   await prisma.bericht.create({
     data: {
       onderwerp: "Vraag over het huiswerk",
       inhoud: "Assalamu alaykum ustadh, mag ik mijn opname later vandaag insturen?",
-      verzenderId: volwassen1.id,
+      verzenderId: zelfstandig1.id,
       ontvangerId: docent1.id,
     },
   });
@@ -365,7 +368,7 @@ async function main() {
   console.log(`    Alle demo-accounts hebben wachtwoord: ${PW}`);
   console.log(`    Docent: ${docent1.email}`);
   console.log(`    Leerling: ${leerlingen[0].email}`);
-  console.log(`    18+ leerling: ${volwassen1.email}`);
+  console.log(`    Leerling zonder ouder: ${zelfstandig1.email}`);
 }
 
 main()

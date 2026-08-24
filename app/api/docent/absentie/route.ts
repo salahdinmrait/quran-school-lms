@@ -4,7 +4,19 @@ import { prisma } from "@/lib/prisma";
 
 const VALID_STATUSES = ["AANWEZIG", "AFWEZIG", "TE_LAAT", "GEOORLOOFD"];
 
-// GET /api/docent/absentie?lesId=xxx — absentie for a specific les
+// Aanwezigheid wordt alleen vanuit een les geregistreerd. Een docent mag
+// uitsluitend bij lessen van een klas waaraan hij zelf gekoppeld is.
+async function eigenLes(lesId: string, docentId: string) {
+  return prisma.les.findFirst({
+    where: {
+      id: lesId,
+      klas: { verwijderdOp: null, docenten: { some: { docentId } } },
+    },
+    select: { id: true, klas: { select: { leerlingen: { select: { leerlingId: true } } } } },
+  });
+}
+
+// GET /api/docent/absentie?lesId=xxx — de registratie van één les
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user || session.user.role !== "DOCENT") {
@@ -16,6 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "lesId vereist" }, { status: 400 });
   }
 
+  const les = await eigenLes(lesId, session.user.id);
+  if (!les) return NextResponse.json({ error: "Les niet gevonden" }, { status: 404 });
+
   const aanwezigheid = await prisma.aanwezigheid.findMany({
     where: { lesId },
     include: { leerling: { select: { id: true, name: true } } },
@@ -24,7 +39,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(aanwezigheid);
 }
 
-// POST /api/docent/absentie — upsert attendance record
+// POST /api/docent/absentie — status van één leerling bij één les vastleggen
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user || session.user.role !== "DOCENT") {
@@ -45,6 +60,12 @@ export async function POST(req: NextRequest) {
       { error: `Status moet een van ${VALID_STATUSES.join(", ")} zijn` },
       { status: 400 }
     );
+  }
+
+  const les = await eigenLes(lesId, session.user.id);
+  if (!les) return NextResponse.json({ error: "Les niet gevonden" }, { status: 404 });
+  if (!les.klas.leerlingen.some((kl) => kl.leerlingId === leerlingId)) {
+    return NextResponse.json({ error: "Deze leerling zit niet in de klas van deze les" }, { status: 400 });
   }
 
   try {

@@ -13,7 +13,7 @@ type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG"
 interface DashboardData {
   name: string;
   recenteCijfers: { id: string; waarde: number; datum: string; omschrijving: string | null; vak: { naam: string; categorie: VakCategorie } }[];
-  openHuiswerk: { id: string; titel: string; deadline: string | null; vak: { naam: string; categorie: VakCategorie } }[];
+  openHuiswerk: { id: string; titel: string; vak: { naam: string; categorie: VakCategorie } }[];
   klassen: { klas: { id: string; naam: string; vakken: { id: string; vak: { categorie: VakCategorie } }[] } }[];
   aanwezigPct: number | null;
   totaalLessen: number;
@@ -152,9 +152,6 @@ export default function LeerlingDashboard() {
                       <p className="text-sm font-medium text-gray-800 truncate">{hw.titel}</p>
                       <VakBadge categorie={hw.vak.categorie} className="mt-1" />
                     </div>
-                    {hw.deadline && (
-                      <p className="text-xs text-red-500 whitespace-nowrap">{formatDate(hw.deadline)}</p>
-                    )}
                   </li>
                 ))}
               </ul>

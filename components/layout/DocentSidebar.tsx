@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   School,
   Star,
-  UserCheck,
   BookOpen,
   MessageSquare,
   LogOut,
@@ -28,7 +27,6 @@ const navItemDefs = [
   { href: "/docent/mijn-klassen", key: "nav_klassen" as const, icon: School },
   { href: "/docent/rooster", key: "nav_rooster" as const, icon: Calendar },
   { href: "/docent/cijfers", key: "nav_cijfers" as const, icon: Star },
-  { href: "/docent/absentie", key: "nav_absentie" as const, icon: UserCheck },
   { href: "/docent/huiswerk", key: "nav_huiswerk" as const, icon: BookOpen },
   { href: "/docent/berichten", key: "nav_berichten" as const, icon: MessageSquare },
 ];

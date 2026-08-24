@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isDevAuthenticated } from "@/lib/dev-auth";
+import { generatePassword } from "@/lib/wachtwoord";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 
@@ -23,14 +24,6 @@ const schoolSchema = z.object({
     })
     .optional(),
 });
-
-function generatePassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pw = "";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  for (const b of bytes) pw += chars[b % chars.length];
-  return pw;
-}
 
 // GET /api/dev/scholen — list all schools with counts
 export async function GET() {

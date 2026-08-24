@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
-import { Calendar, Clock, BookOpen, ChevronDown, ChevronUp, Loader2, CheckCircle, Send } from "lucide-react";
+import { Calendar, Clock, BookOpen, ChevronDown, ChevronUp, Loader2, CheckCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/contexts/LanguageContext";
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
+// De docent vinkt huiswerk af; die registratie staat in Inlevering.
 interface Inlevering {
   id: string;
   inhoud: string;
@@ -22,7 +20,6 @@ interface HuiswerkItem {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   vak: { id: string; naam: string; categorie: string };
   inleveringen: Inlevering[];
 }
@@ -42,9 +39,6 @@ export default function RoosterPage() {
   const [lessen, setLessen] = useState<Les[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [expandedLesId, setExpandedLesId] = useState<string | null>(null);
-  // inhoud draft per huiswerk id
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch("/api/leerling/lessen")
@@ -55,42 +49,6 @@ export default function RoosterPage() {
       })
       .catch(() => setIsFetching(false));
   }, []);
-
-  async function inleveren(huiswerkId: string) {
-    const inhoud = drafts[huiswerkId];
-    if (!inhoud?.trim()) { toast.error(t("rooster_antwoord_required")); return; }
-    setSaving((p) => ({ ...p, [huiswerkId]: true }));
-    try {
-      const res = await fetch("/api/leerling/huiswerk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ huiswerkId, inhoud }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success(t("rooster_ingeleverd_succes"));
-      // Update local state
-      setLessen((prev) =>
-        prev.map((les) => ({
-          ...les,
-          huiswerk: les.huiswerk.map((hw) =>
-            hw.id === huiswerkId
-              ? {
-                  ...hw,
-                  inleveringen: [
-                    { id: "new", inhoud, createdAt: new Date().toISOString() },
-                  ],
-                }
-              : hw
-          ),
-        }))
-      );
-      setDrafts((p) => ({ ...p, [huiswerkId]: "" }));
-    } catch {
-      toast.error(t("rooster_inleveren_fout"));
-    } finally {
-      setSaving((p) => ({ ...p, [huiswerkId]: false }));
-    }
-  }
 
   // Group by date
   const grouped: Record<string, Les[]> = {};
@@ -163,7 +121,7 @@ export default function RoosterPage() {
                               }`}>
                                 {openCount > 0
                                   ? `${openCount} ${t("rooster_openstaand")}`
-                                  : `${hwCount} ✓ ${t("rooster_alles_ingeleverd")}`}
+                                  : `${hwCount} ✓ ${t("rooster_alles_afgevinkt")}`}
                               </span>
                             )}
                             {isExpanded
@@ -182,13 +140,15 @@ export default function RoosterPage() {
                               </p>
                             ) : (
                               les.huiswerk.map((hw) => {
-                                const isIngeleverd = hw.inleveringen.length > 0;
+                                // "Af" is wat de docent heeft afgevinkt — de
+                                // leerling levert zelf niets meer in.
+                                const isAfgevinkt = hw.inleveringen.length > 0;
                                 const inlevering = hw.inleveringen[0];
 
                                 return (
-                                  <div key={hw.id} className={`rounded-lg border p-3 ${isIngeleverd ? "border-green-200 bg-green-50/40" : "border-amber-200 bg-amber-50/30"}`}>
+                                  <div key={hw.id} className={`rounded-lg border p-3 ${isAfgevinkt ? "border-green-200 bg-green-50/40" : "border-amber-200 bg-amber-50/30"}`}>
                                     <div className="flex items-start gap-2 mb-2">
-                                      <BookOpen className={`h-4 w-4 mt-0.5 shrink-0 ${isIngeleverd ? "text-green-600" : "text-amber-600"}`} />
+                                      <BookOpen className={`h-4 w-4 mt-0.5 shrink-0 ${isAfgevinkt ? "text-green-600" : "text-amber-600"}`} />
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <p className="text-sm font-semibold text-gray-900">{hw.titel}</p>
@@ -197,46 +157,23 @@ export default function RoosterPage() {
                                         {hw.beschrijving && (
                                           <p className="text-xs text-gray-500 mt-1">{hw.beschrijving}</p>
                                         )}
-                                        {hw.deadline && (
-                                          <p className="text-xs text-red-500 mt-1">
-                                            {t("deadline")}: {formatDate(hw.deadline)}
-                                          </p>
-                                        )}
                                       </div>
                                     </div>
 
-                                    {isIngeleverd ? (
+                                    {isAfgevinkt ? (
                                       <div className="flex items-start gap-2 bg-white rounded border border-green-200 px-3 py-2">
                                         <CheckCircle className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
                                         <div>
-                                          <p className="text-xs font-medium text-green-700">{t("rooster_ingeleverd")}</p>
-                                          {inlevering?.inhoud && (
+                                          <p className="text-xs font-medium text-green-700">{t("afgevinkt")}</p>
+                                          {/* "✓" is de afvink-markering zelf; alleen een
+                                              echte opmerking van de docent tonen. */}
+                                          {inlevering?.inhoud && inlevering.inhoud !== "✓" && (
                                             <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{inlevering.inhoud}</p>
                                           )}
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className="space-y-2">
-                                        <Textarea
-                                          placeholder={t("rooster_antwoord_placeholder")}
-                                          value={drafts[hw.id] ?? ""}
-                                          onChange={(e) => setDrafts((p) => ({ ...p, [hw.id]: e.target.value }))}
-                                          rows={3}
-                                          className="text-sm"
-                                        />
-                                        <Button
-                                          size="sm"
-                                          onClick={() => inleveren(hw.id)}
-                                          disabled={saving[hw.id]}
-                                          className="bg-green-700 hover:bg-green-800 text-white"
-                                        >
-                                          {saving[hw.id]
-                                            ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                                            : <Send className="h-3.5 w-3.5 mr-1" />
-                                          }
-                                          {t("inleveren")}
-                                        </Button>
-                                      </div>
+                                      <p className="text-xs text-gray-500">{t("huiswerk_docent_afvinkt")}</p>
                                     )}
                                   </div>
                                 );

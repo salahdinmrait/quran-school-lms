@@ -74,9 +74,9 @@ export async function GET(
   // Build ranking for all leerlingen in the klas
   const ranking = klas.leerlingen
     .map((kl) => {
-      const aantalIngeleverd = countMap.get(kl.leerling.id) ?? 0;
-      const percentage = Math.round((aantalIngeleverd / totaalHw) * 100);
-      return { leerling: kl.leerling, aantalIngeleverd, totaal: totaalHw, percentage };
+      const aantalAfgevinkt = countMap.get(kl.leerling.id) ?? 0;
+      const percentage = Math.round((aantalAfgevinkt / totaalHw) * 100);
+      return { leerling: kl.leerling, aantalAfgevinkt, totaal: totaalHw, percentage };
     })
     .sort((a, b) => b.percentage - a.percentage || a.leerling.name.localeCompare(b.leerling.name));
 

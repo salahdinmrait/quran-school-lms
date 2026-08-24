@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isDevAuthenticated } from "@/lib/dev-auth";
-import { sendMail, welkomstEmail } from "@/lib/email";
-import { WEBAPP_URL, wachtwoordInstellenUrl } from "@/lib/urls";
+import { generatePassword } from "@/lib/wachtwoord";
 import { hash } from "bcryptjs";
 import ExcelJS from "exceljs";
-import crypto from "crypto";
 
-// Import kan bij honderden rijen lang duren (hashen + mails versturen)
+// Import kan bij honderden rijen lang duren (bcrypt-hashen)
 export const maxDuration = 300;
 
 const GELDIGE_ROLLEN = ["LEERLING", "OUDER", "DOCENT", "ADMIN"] as const;
@@ -19,16 +17,7 @@ type RijResultaat = {
   email: string;
   status: "aangemaakt" | "overgeslagen" | "fout";
   reden?: string;
-  wachtwoord?: string;
 };
-
-function generatePassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pw = "";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  for (const b of bytes) pw += chars[b % chars.length];
-  return pw;
-}
 
 // Excel-cellen kunnen strings, nummers, hyperlink-objecten of richText zijn
 function celTekst(waarde: ExcelJS.CellValue): string {
@@ -45,11 +34,11 @@ function celTekst(waarde: ExcelJS.CellValue): string {
   return String(waarde).trim();
 }
 
-const wacht = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 // POST /api/dev/scholen/[id]/import — verwerk een ingevulde Excel-template:
-// maakt accounts aan en stuurt iedere nieuwe gebruiker een welkomstmail met
-// inloggegevens + wachtwoord-kies-link (7 dagen geldig).
+// maakt alleen accounts aan. Er gaat bewust GEEN mail uit; de inloggegevens
+// verstuur je daarna als losse handeling via
+// POST /api/dev/scholen/[id]/inloggegevens. Zo kan een refresh of een tweede
+// import nooit per ongeluk opnieuw mailen.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -138,7 +127,7 @@ export async function POST(
     });
     const bestaandeEmails = new Set(bestaand.map((b) => b.email));
 
-    // ── Accounts aanmaken + welkomstmails versturen ─────────────────────────
+    // ── Accounts aanmaken (zonder mail) ─────────────────────────────────────
     for (const k of kandidaten) {
       if (bestaandeEmails.has(k.email)) {
         resultaten.push({ rij: k.rij, naam: k.naam, email: k.email, status: "overgeslagen", reden: "E-mailadres bestaat al" });
@@ -146,38 +135,21 @@ export async function POST(
       }
 
       try {
-        const wachtwoord = generatePassword();
-        const user = await prisma.user.create({
+        // Een onbruikbaar startwachtwoord: niemand kent het, en bij het
+        // versturen van de inloggegevens krijgt het account alsnog een vers
+        // tijdelijk wachtwoord dat wél in de mail staat.
+        await prisma.user.create({
           data: {
             name: k.naam,
             email: k.email,
-            password: await hash(wachtwoord, 12),
+            password: await hash(generatePassword(), 12),
             role: k.rol,
             telefoon: k.telefoon,
             schoolId: school.id,
           },
         });
 
-        // Wachtwoord-kies-link, 7 dagen geldig
-        const resetToken = crypto.randomBytes(32).toString("hex");
-        await prisma.passwordResetToken.create({
-          data: {
-            token: resetToken,
-            gebruikerId: user.id,
-            verlooptOp: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        });
-        const resetUrl = wachtwoordInstellenUrl(resetToken);
-
-        await sendMail({
-          to: k.email,
-          subject: `Uw Jadwal-account voor ${school.naam}`,
-          html: welkomstEmail(k.naam, k.email, wachtwoord, resetUrl, school.naam, WEBAPP_URL),
-        });
-        // Resend-limiet is ~2 mails/seconde
-        await wacht(600);
-
-        resultaten.push({ rij: k.rij, naam: k.naam, email: k.email, status: "aangemaakt", wachtwoord });
+        resultaten.push({ rij: k.rij, naam: k.naam, email: k.email, status: "aangemaakt" });
       } catch (err) {
         console.error(`[import] rij ${k.rij} (${k.email})`, err);
         resultaten.push({ rij: k.rij, naam: k.naam, email: k.email, status: "fout", reden: "Aanmaken mislukt (serverfout)" });

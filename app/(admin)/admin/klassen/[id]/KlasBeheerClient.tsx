@@ -89,11 +89,18 @@ export default function KlasBeheerClient({
   const [loadingVak, setLoadingVak] = useState(false);
 
   // Filter leerlingen by search
-  const filteredBeschikbaar = beschikbareLeerlingen.filter(
-    (l) =>
-      l.name.toLowerCase().includes(leerlingSearch.toLowerCase()) ||
-      l.email.toLowerCase().includes(leerlingSearch.toLowerCase())
-  );
+  // Zonder zoekterm tonen we bewust niemand: bij een volle school zou dat een
+  // lijst van honderden namen zijn. Typen levert maximaal MAX_TREFFERS rijen.
+  const MAX_TREFFERS = 8;
+  const zoekterm = leerlingSearch.trim().toLowerCase();
+  const filteredBeschikbaar = zoekterm
+    ? beschikbareLeerlingen.filter(
+        (l) =>
+          l.name.toLowerCase().includes(zoekterm) ||
+          l.email.toLowerCase().includes(zoekterm)
+      )
+    : [];
+  const zichtbareBeschikbaar = filteredBeschikbaar.slice(0, MAX_TREFFERS);
 
   function toggleLeerling(id: string) {
     setCheckedLeerlingen((prev) => {
@@ -104,10 +111,10 @@ export default function KlasBeheerClient({
   }
 
   function toggleAll() {
-    if (checkedLeerlingen.size === filteredBeschikbaar.length && filteredBeschikbaar.length > 0) {
+    if (checkedLeerlingen.size === zichtbareBeschikbaar.length && zichtbareBeschikbaar.length > 0) {
       setCheckedLeerlingen(new Set());
     } else {
-      setCheckedLeerlingen(new Set(filteredBeschikbaar.map((l) => l.id)));
+      setCheckedLeerlingen(new Set(zichtbareBeschikbaar.map((l) => l.id)));
     }
   }
 
@@ -245,8 +252,8 @@ export default function KlasBeheerClient({
   }
 
   const allFilteredChecked =
-    filteredBeschikbaar.length > 0 &&
-    filteredBeschikbaar.every((l) => checkedLeerlingen.has(l.id));
+    zichtbareBeschikbaar.length > 0 &&
+    zichtbareBeschikbaar.every((l) => checkedLeerlingen.has(l.id));
 
   return (
     <div className="grid gap-6">
@@ -480,12 +487,16 @@ export default function KlasBeheerClient({
 
               {/* Checkbox list */}
               <ul className="max-h-52 overflow-y-auto divide-y divide-gray-100">
-                {filteredBeschikbaar.length === 0 ? (
+                {!zoekterm ? (
+                  <li className="px-3 py-3 text-sm text-gray-400 text-center">
+                    Typ een naam of e-mailadres om te zoeken.
+                  </li>
+                ) : filteredBeschikbaar.length === 0 ? (
                   <li className="px-3 py-3 text-sm text-gray-400 text-center">
                     Geen resultaten gevonden.
                   </li>
                 ) : (
-                  filteredBeschikbaar.map((l) => (
+                  zichtbareBeschikbaar.map((l) => (
                     <li key={l.id}>
                       <label className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
                         <input
@@ -501,6 +512,11 @@ export default function KlasBeheerClient({
                       </label>
                     </li>
                   ))
+                )}
+                {filteredBeschikbaar.length > MAX_TREFFERS && (
+                  <li className="px-3 py-2 text-xs text-gray-400 text-center">
+                    Nog {filteredBeschikbaar.length - MAX_TREFFERS} anderen — typ verder om te verfijnen.
+                  </li>
                 )}
               </ul>
 

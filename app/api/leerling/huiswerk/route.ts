@@ -1,19 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+// GET /api/leerling/huiswerk        — al het huiswerk van deze leerling
+// GET /api/leerling/huiswerk?lesId= — alleen het huiswerk bij één les
+//     (gebruikt door het lesdetail in het rooster van de leerling)
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user || session.user.role !== "LEERLING") {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
   const leerlingId = session.user.id;
+  const lesId = new URL(req.url).searchParams.get("lesId");
 
   // Huiswerk voor de klassen van de leerling; gericht huiswerk alleen als de
   // leerling in de doellijst staat (leeg = voor iedereen met dat vak).
   const huiswerk = await prisma.huiswerk.findMany({
     where: {
+      ...(lesId ? { lesId } : {}),
       vak: {
         klassen: {
           some: {
@@ -28,6 +33,7 @@ export async function GET() {
     },
     include: {
       vak: true,
+      les: { select: { id: true, datum: true } },
       inleveringen: {
         where: { leerlingId },
         select: {
@@ -36,18 +42,21 @@ export async function GET() {
         },
       },
     },
-    orderBy: { deadline: "asc" },
+    // Huiswerk hangt aan een les; de lesdatum bepaalt de volgorde. Los huiswerk
+    // van vóór die regel heeft geen les en komt achteraan.
+    orderBy: [{ les: { datum: "desc" } }, { id: "desc" }],
   });
 
   const result = huiswerk.map((h) => ({
     id: h.id,
     titel: h.titel,
     beschrijving: h.beschrijving,
-    deadline: h.deadline?.toISOString() ?? null,
     vak: { naam: h.vak.naam, categorie: h.vak.categorie },
+    lesId: h.lesId,
+    lesDatum: h.les?.datum.toISOString() ?? null,
     bijlageNaam: h.bijlageNaam ?? null,
     hasBijlage: !!h.bijlageNaam,
-    ingeLeverd: h.inleveringen.length > 0,
+    afgevinkt: h.inleveringen.length > 0,
     inlevering: h.inleveringen[0]
       ? {
           id: h.inleveringen[0].id,
@@ -64,4 +73,5 @@ export async function GET() {
   return NextResponse.json(result);
 }
 
-// POST removed: only docents can mark homework done via /api/docent/huiswerk/afvinken
+// Geen POST: de docent bepaalt of huiswerk af is, via
+// /api/docent/huiswerk/afvinken. Leerlingen leveren niets meer in.

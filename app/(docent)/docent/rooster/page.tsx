@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Calendar, Clock, Plus, Trash2, BookOpen,
-  ChevronDown, ChevronUp, Loader2, RepeatIcon, CheckCircle,
+  ChevronDown, ChevronUp, Loader2, RepeatIcon, CheckCircle, UserCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
+
+const AANWEZIGHEID_STATUSSEN = [
+  { value: "AANWEZIG", label: "Aanwezig", kleur: "bg-green-100 text-green-700 border-green-300" },
+  { value: "TE_LAAT", label: "Te laat", kleur: "bg-amber-100 text-amber-700 border-amber-300" },
+  { value: "GEOORLOOFD", label: "Geoorloofd", kleur: "bg-blue-100 text-blue-700 border-blue-300" },
+  { value: "AFWEZIG", label: "Afwezig", kleur: "bg-red-100 text-red-700 border-red-300" },
+];
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
@@ -27,7 +34,7 @@ interface Les {
 }
 interface HuiswerkItem {
   id: string; titel: string; beschrijving: string | null;
-  deadline: string | null; vak: Vak;
+  vak: Vak;
   inleveringen: { id: string }[];
 }
 
@@ -42,6 +49,11 @@ export default function DocentRoosterPage() {
   const [loadingHw, setLoadingHw] = useState<string | null>(null);
   const [showHwForm, setShowHwForm] = useState<string | null>(null);
   const [savingHw, setSavingHw] = useState(false);
+  const [deletingHw, setDeletingHw] = useState<string | null>(null);
+
+  // Aanwezigheid hoort bij de les, niet bij een aparte pagina
+  const [aanwezigheidPerLes, setAanwezigheidPerLes] = useState<Record<string, Record<string, string>>>({});
+  const [savingAanw, setSavingAanw] = useState<string | null>(null);
 
   const [lesForm, setLesForm] = useState({
     selectedKlasId: "",
@@ -55,7 +67,7 @@ export default function DocentRoosterPage() {
   });
 
   const [hwForm, setHwForm] = useState({
-    titel: "", beschrijving: "", deadline: "", vakId: "",
+    titel: "", beschrijving: "", vakId: "",
   });
 
   useEffect(() => {
@@ -84,13 +96,54 @@ export default function DocentRoosterPage() {
     if (!huiswerkPerLes[les.id]) {
       setLoadingHw(les.id);
       try {
-        const data = await fetch(`/api/docent/huiswerk?lesId=${les.id}`).then((r) => r.json());
-        setHuiswerkPerLes((prev) => ({ ...prev, [les.id]: Array.isArray(data) ? data : [] }));
+        const [hw, aanw] = await Promise.all([
+          fetch(`/api/docent/huiswerk?lesId=${les.id}`).then((r) => r.json()),
+          fetch(`/api/docent/absentie?lesId=${les.id}`).then((r) => r.json()),
+        ]);
+        setHuiswerkPerLes((prev) => ({ ...prev, [les.id]: Array.isArray(hw) ? hw : [] }));
+        setAanwezigheidPerLes((prev) => ({
+          ...prev,
+          [les.id]: Object.fromEntries(
+            (Array.isArray(aanw) ? aanw : []).map((a: { leerlingId: string; status: string }) => [
+              a.leerlingId,
+              a.status,
+            ])
+          ),
+        }));
       } catch {
-        toast.error("Kon huiswerk niet laden.");
+        toast.error("Kon de les niet laden.");
       } finally {
         setLoadingHw(null);
       }
+    }
+  }
+
+  // Aanwezigheid registreren: optimistisch wegschrijven en terugdraaien bij een
+  // fout — precies zoals het lesdetail in de app dat doet.
+  async function registreerAanwezigheid(lesId: string, leerlingId: string, status: string) {
+    const vorige = aanwezigheidPerLes[lesId]?.[leerlingId];
+    setAanwezigheidPerLes((prev) => ({
+      ...prev,
+      [lesId]: { ...(prev[lesId] ?? {}), [leerlingId]: status },
+    }));
+    setSavingAanw(leerlingId);
+    try {
+      const res = await fetch("/api/docent/absentie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lesId, leerlingId, status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setAanwezigheidPerLes((prev) => {
+        const les = { ...(prev[lesId] ?? {}) };
+        if (vorige) les[leerlingId] = vorige;
+        else delete les[leerlingId];
+        return { ...prev, [lesId]: les };
+      });
+      toast.error("Opslaan mislukt.");
+    } finally {
+      setSavingAanw(null);
     }
   }
 
@@ -143,7 +196,7 @@ export default function DocentRoosterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titel: hwForm.titel, beschrijving: hwForm.beschrijving || null,
-          deadline: hwForm.deadline || null, vakId: hwForm.vakId, lesId,
+          vakId: hwForm.vakId, lesId,
         }),
       });
       const data = await res.json();
@@ -152,14 +205,34 @@ export default function DocentRoosterPage() {
       toast.success("Huiswerk toegevoegd aan les.");
       setHuiswerkPerLes((prev) => ({
         ...prev,
-        [lesId]: [{ id: data.id, titel: data.titel, beschrijving: data.beschrijving, deadline: data.deadline, vak: vakObj, inleveringen: [] }, ...(prev[lesId] ?? [])],
+        [lesId]: [{ id: data.id, titel: data.titel, beschrijving: data.beschrijving, vak: vakObj, inleveringen: [] }, ...(prev[lesId] ?? [])],
       }));
-      setHwForm({ titel: "", beschrijving: "", deadline: "", vakId: "" });
+      setHwForm({ titel: "", beschrijving: "", vakId: "" });
       setShowHwForm(null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Aanmaken mislukt.");
     } finally {
       setSavingHw(false);
+    }
+  }
+
+  // Huiswerk verwijderen vanuit de les — inclusief bevestiging. De API ruimt
+  // ook de koppelingen (doelleerlingen, afvinkingen) op.
+  async function deleteHuiswerk(lesId: string, huiswerkId: string) {
+    if (!confirm("Weet je zeker dat je dit huiswerk wilt verwijderen?")) return;
+    setDeletingHw(huiswerkId);
+    try {
+      const res = await fetch(`/api/docent/huiswerk/${huiswerkId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setHuiswerkPerLes((prev) => ({
+        ...prev,
+        [lesId]: (prev[lesId] ?? []).filter((h) => h.id !== huiswerkId),
+      }));
+      toast.success("Huiswerk verwijderd.");
+    } catch {
+      toast.error("Verwijderen mislukt.");
+    } finally {
+      setDeletingHw(null);
     }
   }
 
@@ -369,6 +442,45 @@ export default function DocentRoosterPage() {
                               </div>
                             ) : (
                               <>
+                                {/* Aanwezigheid — alleen hier, niet meer op een aparte pagina */}
+                                {les.klas.leerlingen.length > 0 && (
+                                  <div className="rounded-lg border border-gray-200 p-3">
+                                    <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                                      <UserCheck className="h-3.5 w-3.5 text-green-600" />
+                                      Aanwezigheid
+                                    </p>
+                                    <div className="space-y-1.5">
+                                      {les.klas.leerlingen.map(({ leerling }) => {
+                                        const huidig = aanwezigheidPerLes[les.id]?.[leerling.id] ?? "";
+                                        return (
+                                          <div key={leerling.id} className="flex flex-wrap items-center gap-2">
+                                            <span className="min-w-0 flex-1 truncate text-sm text-gray-800">
+                                              {leerling.name}
+                                            </span>
+                                            <div className="flex gap-1">
+                                              {AANWEZIGHEID_STATUSSEN.map((st) => (
+                                                <button
+                                                  key={st.value}
+                                                  type="button"
+                                                  disabled={savingAanw === leerling.id}
+                                                  onClick={() => registreerAanwezigheid(les.id, leerling.id, st.value)}
+                                                  className={`rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50 ${
+                                                    huidig === st.value
+                                                      ? st.kleur
+                                                      : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                                                  }`}
+                                                >
+                                                  {st.label}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {lesHw.length === 0 ? (
                                   <p className="text-sm text-gray-400 italic">Nog geen huiswerk aan deze les gekoppeld.</p>
                                 ) : (
@@ -382,13 +494,21 @@ export default function DocentRoosterPage() {
                                             <VakBadge categorie={hw.vak.categorie as VakCategorie} />
                                           </div>
                                           <p className="text-xs text-gray-500">
-                                            {hw.deadline && `Deadline: ${formatDate(hw.deadline)} · `}
                                             <span className="inline-flex items-center gap-0.5">
                                               <CheckCircle className="h-3 w-3 text-green-600" />
-                                              {hw.inleveringen.length} ingeleverd
+                                              {hw.inleveringen.length} afgevinkt
                                             </span>
                                           </p>
                                         </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => deleteHuiswerk(les.id, hw.id)}
+                                          disabled={deletingHw === hw.id}
+                                          title="Huiswerk verwijderen"
+                                          className="shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
                                       </div>
                                     ))}
                                   </div>
@@ -400,7 +520,7 @@ export default function DocentRoosterPage() {
                                     variant="outline"
                                     onClick={() => {
                                       setShowHwForm(les.id);
-                                      setHwForm({ titel: "", beschrijving: "", deadline: "", vakId: vakkenForLes[0]?.id ?? "" });
+                                      setHwForm({ titel: "", beschrijving: "", vakId: vakkenForLes[0]?.id ?? "" });
                                     }}
                                   >
                                     <Plus className="h-3.5 w-3.5 mr-1" />
@@ -430,10 +550,6 @@ export default function DocentRoosterPage() {
                                     <div>
                                       <label className="block text-xs font-medium text-gray-700 mb-1">Beschrijving</label>
                                       <Textarea value={hwForm.beschrijving} onChange={(e) => setHwForm((p) => ({ ...p, beschrijving: e.target.value }))} rows={2} className="text-sm" />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-medium text-gray-700 mb-1">Deadline</label>
-                                      <Input type="date" value={hwForm.deadline} onChange={(e) => setHwForm((p) => ({ ...p, deadline: e.target.value }))} className="text-sm" />
                                     </div>
                                     <div className="flex gap-2">
                                       <Button type="submit" size="sm" disabled={savingHw} className="bg-green-700 hover:bg-green-800 text-white">

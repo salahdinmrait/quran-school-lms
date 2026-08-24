@@ -21,8 +21,15 @@ export async function GET(req: NextRequest) {
   const leerlingWhere = {
     role: "LEERLING",
     actief: true,
+    // Gearchiveerde leerlingen horen niet in een zoekresultaat.
+    verwijderdOp: null,
     schoolId: session.user.schoolId ?? null,
-    name: { contains: q, mode: "insensitive" as const },
+    // Zoeken op naam én e-mail — twee leerlingen met dezelfde naam zijn
+    // alleen aan hun adres uit elkaar te houden.
+    OR: [
+      { name: { contains: q, mode: "insensitive" as const } },
+      { email: { contains: q, mode: "insensitive" as const } },
+    ],
     ...(isAdmin ? {} : {
       leerlingKlassen: {
         some: { klas: { docenten: { some: { docentId } } } },
@@ -66,17 +73,20 @@ export async function GET(req: NextRequest) {
       where: { leerlingId: { in: leerlingIds } },
       _count: { id: true },
     }),
-    // Total huiswerk accessible to each leerling (via their klassen)
-    Promise.all(leerlingIds.map(async (leerlingId) => {
-      const count = await prisma.huiswerk.count({
-        where: {
-          vak: {
-            klassen: { some: { klas: { leerlingen: { some: { leerlingId } } } } },
-          },
+    // Al het huiswerk van de klassen waar deze leerlingen in zitten. Eén query
+    // voor de hele lijst; het toerekenen per leerling gebeurt hieronder in JS.
+    prisma.huiswerk.findMany({
+      where: {
+        vak: {
+          klassen: { some: { klas: { leerlingen: { some: { leerlingId: { in: leerlingIds } } } } } },
         },
-      });
-      return { leerlingId, count };
-    })),
+      },
+      select: {
+        id: true,
+        vak: { select: { klassen: { select: { klasId: true } } } },
+        doelLeerlingen: { select: { leerlingId: true } },
+      },
+    }),
   ]);
 
   // Index by leerlingId for O(1) lookup
@@ -100,9 +110,21 @@ export async function GET(req: NextRequest) {
     invMap.set(row.leerlingId, row._count.id);
   }
 
+  // Per leerling tellen: huiswerk van een klas waar hij in zit, en dan alleen
+  // als het voor de hele klas is (lege doellijst) of hij er zelf bij staat.
+  const klassenPerLeerling = new Map<string, Set<string>>(
+    leerlingen.map((l) => [l.id, new Set(l.leerlingKlassen.map((kl) => kl.klas.id))])
+  );
   const hwMap = new Map<string, number>();
-  for (const { leerlingId, count } of totaalHuiswerk) {
-    hwMap.set(leerlingId, count);
+  for (const hw of totaalHuiswerk) {
+    const klasIds = hw.vak.klassen.map((k) => k.klasId);
+    const doel = hw.doelLeerlingen.map((d) => d.leerlingId);
+    for (const leerlingId of leerlingIds) {
+      if (doel.length > 0 && !doel.includes(leerlingId)) continue;
+      const eigenKlassen = klassenPerLeerling.get(leerlingId);
+      if (!eigenKlassen || !klasIds.some((k) => eigenKlassen.has(k))) continue;
+      hwMap.set(leerlingId, (hwMap.get(leerlingId) ?? 0) + 1);
+    }
   }
 
   const result = leerlingen.map((l) => {

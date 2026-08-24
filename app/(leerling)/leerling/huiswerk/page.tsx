@@ -13,11 +13,10 @@ interface HuiswerkItem {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   bijlageNaam: string | null;
   hasBijlage: boolean;
   vak: { naam: string; categorie: VakCategorie };
-  ingeLeverd: boolean;
+  afgevinkt: boolean;
   inlevering?: {
     inhoud: string;
     createdAt: string;
@@ -29,7 +28,7 @@ interface HuiswerkItem {
 interface RankingItem {
   positie: number;
   leerling: { id: string; name: string };
-  aantalIngeleverd: number;
+  aantalAfgevinkt: number;
   totaal: number;
   percentage: number;
 }
@@ -70,15 +69,15 @@ export default function HuiswerkPage() {
     );
   }
 
-  const open = huiswerk.filter((h) => !h.ingeLeverd);
-  const ingeleverd = huiswerk.filter((h) => h.ingeLeverd);
+  const open = huiswerk.filter((h) => !h.afgevinkt);
+  const afgevinkt = huiswerk.filter((h) => h.afgevinkt);
 
   return (
     <div className="p-6 max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t("huiswerk_titel")}</h1>
         <p className="text-gray-500 mt-1 text-sm">
-          {open.length} {t("openstaand")} · {ingeleverd.length} {t("afgevinkt")}
+          {open.length} {t("openstaand")} · {afgevinkt.length} {t("afgevinkt")}
         </p>
       </div>
 
@@ -107,7 +106,7 @@ export default function HuiswerkPage() {
                     <span className="flex-1 text-sm font-medium text-gray-900">{item.leerling.name}</span>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold text-green-700">{item.percentage}%</p>
-                      <p className="text-xs text-gray-400">{item.aantalIngeleverd}/{item.totaal}</p>
+                      <p className="text-xs text-gray-400">{item.aantalAfgevinkt}/{item.totaal}</p>
                     </div>
                   </div>
                 ))}
@@ -143,11 +142,6 @@ export default function HuiswerkPage() {
                       <p className="text-sm font-semibold text-gray-800">{hw.titel}</p>
                       <VakBadge categorie={hw.vak.categorie} className="mt-1" />
                     </div>
-                    {hw.deadline && (
-                      <p className="text-xs text-red-500 whitespace-nowrap shrink-0">
-                        Deadline: {formatDate(hw.deadline)}
-                      </p>
-                    )}
                   </div>
                   {hw.beschrijving && (
                     <p className="text-sm text-gray-500 mt-2">{hw.beschrijving}</p>
@@ -173,14 +167,14 @@ export default function HuiswerkPage() {
       )}
 
       {/* ── Afgevinkt ──────────────────────────────────────────────── */}
-      {ingeleverd.length > 0 && (
+      {afgevinkt.length > 0 && (
         <div>
           <h2 className="text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-600" />
-            {t("afgevinkt")} ({ingeleverd.length})
+            {t("afgevinkt")} ({afgevinkt.length})
           </h2>
           <div className="space-y-3">
-            {ingeleverd.map((hw) => (
+            {afgevinkt.map((hw) => (
               <Card key={hw.id} className="border-green-100 bg-green-50/30">
                 <CardContent className="py-4 space-y-2">
                   <div className="flex items-center justify-between">

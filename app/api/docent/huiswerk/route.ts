@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const huiswerk = await prisma.huiswerk.findMany({
     where,
-    orderBy: { deadline: "asc" },
+    orderBy: [{ les: { datum: "desc" } }, { id: "desc" }],
     include: {
       vak: true,
       les: { include: { klas: true } },
@@ -57,39 +57,77 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(result);
 }
 
-// POST /api/docent/huiswerk — create huiswerk
+// POST /api/docent/huiswerk — huiswerk aanmaken bij een les
+//
+// Huiswerk hoort altijd bij een les: de lesdatum bepaalt wanneer het aan de
+// beurt is, er is geen aparte deadline meer. De docent moet aan de klas van die
+// les gekoppeld zijn; het vak moet in die klas gegeven worden; en gerichte
+// leerlingen moeten in die klas zitten.
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user || session.user.role !== "DOCENT") {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { titel, beschrijving, deadline, vakId, lesId, leerlingIds,
+  const docentId = session.user.id;
+  const { titel, beschrijving, vakId, lesId, leerlingIds,
           bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
   }
+  if (!lesId) {
+    return NextResponse.json(
+      { error: "Huiswerk hoort bij een les — open de les in het rooster" },
+      { status: 400 }
+    );
+  }
 
-  // Optioneel gericht op specifieke leerlingen
-  const doelIds: string[] = Array.isArray(leerlingIds)
+  // De les moet bij een klas van déze docent horen
+  const les = await prisma.les.findFirst({
+    where: { id: lesId, klas: { verwijderdOp: null, docenten: { some: { docentId } } } },
+    select: {
+      klasId: true,
+      klas: {
+        select: {
+          vakken: { select: { vakId: true } },
+          leerlingen: { select: { leerlingId: true } },
+        },
+      },
+    },
+  });
+  if (!les) {
+    return NextResponse.json({ error: "Les niet gevonden" }, { status: 404 });
+  }
+  if (!les.klas.vakken.some((kv) => kv.vakId === vakId)) {
+    return NextResponse.json({ error: "Dit vak hoort niet bij deze klas" }, { status: 400 });
+  }
+
+  // Doelgroep: leeg = hele klas. Anders alleen leerlingen uit déze klas.
+  const gevraagd: string[] = Array.isArray(leerlingIds)
     ? Array.from(new Set(leerlingIds.filter((x): x is string => typeof x === "string")))
     : [];
+  const inKlas = new Set(les.klas.leerlingen.map((kl) => kl.leerlingId));
+  if (gevraagd.some((id) => !inKlas.has(id))) {
+    return NextResponse.json(
+      { error: "Een gekozen leerling zit niet in deze klas" },
+      { status: 400 }
+    );
+  }
 
   try {
     const hw = await prisma.huiswerk.create({
       data: {
         titel,
         beschrijving: beschrijving || null,
-        deadline: deadline ? new Date(deadline) : null,
         vakId,
-        lesId: lesId || null,
+        lesId,
         bijlageNaam: bijlageNaam || null,
         bijlageUrl:  bijlageUrl  || null,   // Vercel Blob URL (preferred)
         bijlageData: bijlageData || null,   // legacy base64 fallback
         bijlageType: bijlageType || null,
-        ...(doelIds.length > 0
-          ? { doelLeerlingen: { create: doelIds.map((leerlingId) => ({ leerlingId })) } }
+        ...(gevraagd.length > 0
+          ? { doelLeerlingen: { create: gevraagd.map((leerlingId) => ({ leerlingId })) } }
           : {}),
       },
       include: {

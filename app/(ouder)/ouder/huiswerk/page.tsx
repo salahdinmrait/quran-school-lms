@@ -13,9 +13,8 @@ interface HuiswerkItem {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   vak: { naam: string; categorie: VakCategorie };
-  ingeLeverd: boolean;
+  afgevinkt: boolean;
   inlevering: { inhoud: string; createdAt: string; opmerking: string | null } | null;
 }
 
@@ -52,8 +51,8 @@ export default function OuderHuiswerkPage() {
       </div>
 
       {data.map(({ kind, huiswerk }) => {
-        const open = huiswerk.filter((h) => !h.ingeLeverd);
-        const ingeLeverd = huiswerk.filter((h) => h.ingeLeverd);
+        const open = huiswerk.filter((h) => !h.afgevinkt);
+        const afgevinkt = huiswerk.filter((h) => h.afgevinkt);
 
         return (
           <div key={kind.id} className="space-y-5">
@@ -84,11 +83,6 @@ export default function OuderHuiswerkPage() {
                                 <p className="text-sm font-semibold text-gray-800">{hw.titel}</p>
                                 <VakBadge categorie={hw.vak.categorie} className="mt-1" />
                               </div>
-                              {hw.deadline && (
-                                <p className="text-xs text-red-500 whitespace-nowrap shrink-0">
-                                  {t("huiswerk_deadline")}: {formatDate(hw.deadline)}
-                                </p>
-                              )}
                             </div>
                             {hw.beschrijving && (
                               <p className="text-sm text-gray-500 mt-2">{hw.beschrijving}</p>
@@ -102,14 +96,14 @@ export default function OuderHuiswerkPage() {
                 )}
 
                 {/* Afgevinkt */}
-                {ingeLeverd.length > 0 && (
+                {afgevinkt.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                      {t("afgevinkt")} ({ingeLeverd.length})
+                      {t("afgevinkt")} ({afgevinkt.length})
                     </h3>
                     <div className="space-y-3">
-                      {ingeLeverd.map((hw) => (
+                      {afgevinkt.map((hw) => (
                         <Card key={hw.id} className="border-green-100 bg-green-50/30">
                           <CardContent className="py-4 space-y-2">
                             <div className="flex items-center justify-between gap-2">
@@ -127,7 +121,7 @@ export default function OuderHuiswerkPage() {
                             )}
                             {hw.inlevering && (
                               <p className="text-xs text-green-600">
-                                ✓ {t("huiswerk_ingeleverd_op")} {formatDate(hw.inlevering.createdAt)}
+                                ✓ {t("huiswerk_afgevinkt_op")} {formatDate(hw.inlevering.createdAt)}
                               </p>
                             )}
                           </CardContent>

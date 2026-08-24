@@ -30,10 +30,22 @@ export async function GET() {
         vak: {
           klassen: { some: { klas: { leerlingen: { some: { leerlingId } } } } },
         },
+        // Gericht huiswerk hoort alleen bij de leerling voor wie het bedoeld is;
+        // een lege doellijst betekent "hele klas".
+        OR: [
+          { doelLeerlingen: { none: {} } },
+          { doelLeerlingen: { some: { leerlingId } } },
+        ],
         inleveringen: { none: { leerlingId } },
       },
       take: 5,
-      include: { vak: true },
+      orderBy: [{ les: { datum: "desc" } }, { id: "desc" }],
+      // Expliciet selecteren: bijlageData (base64, tot 4 MB) hoort nooit in een lijst.
+      select: {
+        id: true,
+        titel: true,
+        vak: { select: { id: true, naam: true, categorie: true } },
+      },
     }),
     prisma.bericht.count({ where: { ontvangerId: leerlingId, gelezen: false } }),
     prisma.aanwezigheid.groupBy({

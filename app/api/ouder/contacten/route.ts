@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { contactenVoor } from "@/lib/contacten";
 
-// GET /api/leerling/contacten — docenten van de eigen klassen + admins van de school.
-// De lijst waaruit een leerling kiest bij een nieuw bericht. Dezelfde regels
-// worden bij het versturen opnieuw gecontroleerd (lib/contacten.ts).
+// GET /api/ouder/contacten — docenten van de klassen van de eigen kinderen +
+// admins van de school. De tegenhanger van /api/leerling/contacten; beide
+// gebruiken dezelfde regels uit lib/contacten.ts, die bij het versturen
+// opnieuw worden gecontroleerd.
 export async function GET() {
   const session = await auth();
-  if (!session?.user || session.user.role !== "LEERLING") {
+  if (!session?.user || session.user.role !== "OUDER") {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 

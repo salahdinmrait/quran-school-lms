@@ -24,11 +24,13 @@ export async function GET() {
                 select: {
                   id: true,
                   name: true,
+                  // E-mail hoort erbij: de zoekbalk zoekt op naam én adres.
+                  email: true,
                   // Ouder(s) of this leerling
                   kindVan: {
                     where: { ouder: { verwijderdOp: null } },
                     select: {
-                      ouder: { select: { id: true, name: true } },
+                      ouder: { select: { id: true, name: true, email: true } },
                     },
                   },
                 },
@@ -42,14 +44,14 @@ export async function GET() {
 
   const klassen = klasDocenten.map(({ klas }) => {
     // Ouders dedupliceren, maar ALLE kinderen per ouder verzamelen (niet alleen de eerste)
-    const ouderMap = new Map<string, { id: string; name: string; kinderen: string[] }>();
+    const ouderMap = new Map<string, { id: string; name: string; email: string; kinderen: string[] }>();
     for (const { leerling } of klas.leerlingen) {
       for (const { ouder } of leerling.kindVan) {
         const bestaand = ouderMap.get(ouder.id);
         if (bestaand) {
           if (!bestaand.kinderen.includes(leerling.name)) bestaand.kinderen.push(leerling.name);
         } else {
-          ouderMap.set(ouder.id, { id: ouder.id, name: ouder.name, kinderen: [leerling.name] });
+          ouderMap.set(ouder.id, { id: ouder.id, name: ouder.name, email: ouder.email, kinderen: [leerling.name] });
         }
       }
     }
@@ -58,10 +60,11 @@ export async function GET() {
       id: klas.id,
       naam: klas.naam,
       vakken: klas.vakken.map((kv) => ({ id: kv.vak.id, naam: kv.vak.naam, categorie: kv.vak.categorie })),
-      leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name })),
+      leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name, email: leerling.email })),
       ouders: Array.from(ouderMap.values()).map((o) => ({
         id: o.id,
         name: o.name,
+        email: o.email,
         kinderen: o.kinderen,
         kindNaam: o.kinderen.join(", "), // backwards-compat: alle kinderen samengevoegd
       })),

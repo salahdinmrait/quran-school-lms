@@ -64,13 +64,13 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 - Alleen klassen waaraan de admin de docent gekoppeld heeft, met per klas: vakken (badges), alle leerlingen, en de gekoppelde ouders ("ouder van …")
 
 ### Huiswerk
-- **Aanmaken**: titel (verplicht) → beschrijving → deadline (datum) → **klas kiezen** → **vak** (alleen vakken van die klas) → optioneel **koppelen aan een les** (alleen lessen van die klas) → optioneel **bijlage**
+- **Aanmaken**: altijd **vanuit een les in het rooster** — open de les, klik "Huiswerk toevoegen". Er is geen deadline meer: de datum van de les bepaalt wanneer het aan de beurt is. Velden: titel (verplicht) → beschrijving → **vak** (van die klas) → **doelgroep**: hele klas of specifieke leerlingen (via de zoekbalk) → optioneel **bijlage**
 - **Bijlagen**:
   - **Via de site**: foto, video, audio, PDF, Word, tekst — tot **500 MB** (met voortgangsbalk); ideaal voor recitatie-video's
   - **Via de app**: foto, PDF, audio, video tot **4 MB**; voor grote video's verwijst de app naar de site
 - **Aftekenen per leerling**: open een opgave → lijst van alle leerlingen waarvoor het geldt (de klas van de gekoppelde les, anders alle eigen klassen met dat vak) → per leerling "Aftekenen". **Terugdraaien kan** (nogmaals tikken). Bovenaan een voortgangsbadge zoals "7/12"
 - **Opmerking per leerling**: bij elke afgevinkte leerling kan een opmerking geschreven en later bewerkt worden — zichtbaar voor de leerling en diens ouders
-- **Verwijderen**: hele opgave inclusief afvinkstatussen, met bevestiging
+- **Verwijderen**: vanuit de les in het rooster of vanuit het huiswerkscherm, met bevestiging. De opgave verdwijnt ook meteen bij de leerling; doelleerlingen en afvinkstatussen worden mee opgeruimd
 - Titel/inhoud achteraf bewerken kan niet — verwijderen en opnieuw aanmaken
 - **Klassement**: top 3 leerlingen per klas (🥇🥈🥉) op inleverpercentage, met klas-wissel bij meerdere klassen
 
@@ -79,13 +79,15 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 - **Verwijderen**: per cijfer met bevestiging. Bewerken = verwijderen + opnieuw invoeren
 - Overzicht van alle ingevoerde cijfers, kleurgecodeerd (groen ≥ 5.5, rood eronder)
 
-### Absentie
-- Les selecteren → per leerling één van vier statussen: **Aanwezig / Afwezig / Te laat / Geoorloofd**
+### Aanwezigheid
+- Er is **geen aparte absentiepagina** meer: aanwezigheid regel je in de les zelf (zie Rooster)
+- Per leerling één van vier statussen: **Aanwezig / Te laat / Geoorloofd / Afwezig**
 - Een status kan altijd gewijzigd worden (laatste keuze telt)
+- Een docent kan alleen bij lessen van een klas waaraan hij zelf gekoppeld is
 
-### Rooster
+### Rooster — de werkplek van de docent
 - Eigen lessen (gegroepeerd op datum), **les aanmaken** voor eigen klassen — zelfde velden als admin inclusief **wekelijks herhalen tot einddatum** — en **les verwijderen**
-- Op de site: per les ook het gekoppelde huiswerk bekijken en direct huiswerk aan die les toevoegen
+- Open een les en je regelt daar alles van die les: **aanwezigheid** per leerling, het **huiswerk** van die les bekijken, toevoegen en verwijderen
 
 ### Berichten
 - Identiek aan admin, behalve: geen "docenten"-doel, en alleen **eigen klassen** als bereik (leerlingen/ouders van de eigen klassen)
@@ -95,12 +97,12 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 ## 🧕 Leerling
 
 - **Dashboard**: komende lessen, openstaand huiswerk en recente cijfers
-- **Huiswerk**: gesplitst in **Open** en **Afgerond**; per opgave titel, vak, deadline ("verlopen"-badge als voorbij), beschrijving, **bijlage downloaden/openen**, en na aftekenen: datum + de **opmerking van de docent**. De leerling kan zelf níets afvinken — dat doet de docent in de les
-- **Klassement**: top 3 van de klas + **eigen positie en percentage** ("Jouw positie: #5 · 40% ingeleverd")
+- **Huiswerk**: gesplitst in **Open** en **Afgerond**; per opgave titel, vak, beschrijving, **bijlage downloaden/openen**, en na aftekenen: datum + de **opmerking van de docent**. Er is geen deadline en geen inleverknop: de docent vinkt af in de les. Een leerling ziet alleen huiswerk voor zijn klas of voor hemzelf
+- **Klassement**: top 3 van de klas + **eigen positie en percentage** ("Jouw positie: #5 · 40% afgevinkt")
 - **Cijfers**: alle cijfers met vak, datum en omschrijving
-- **Rooster**: eigen lessen met tijd en lokaal
+- **Rooster**: eigen lessen met tijd en lokaal, met een **HW**-label bij lessen met huiswerk. Een les is aan te tikken en toont vak, docent, datum, begin- en eindtijd, lokaal, bijlage en het huiswerk van die les
 - **Absentie**: eigen aanwezigheidshistorie per les
-- **Berichten**: ⚠️ kan **niet zelf een gesprek beginnen** — alleen **reageren** op berichten van docent/admin. De volledige thread (origineel + alle reacties) is voor beide kanten zichtbaar
+- **Berichten**: kan zelf gesprekken beginnen met **de docenten van de eigen klassen en het beheer van de school** — meerdere tegelijk, gevonden via de zoekbalk — en overal op reageren. De volledige thread (origineel + alle reacties) is voor beide kanten zichtbaar. Dit geldt voor élke leerling; er is geen leeftijdsonderscheid
 
 ---
 
@@ -108,7 +110,7 @@ Geldt voor zowel de **website** als de **mobiele app** (iOS & Android), tenzij a
 
 - Alles is **per kind** — bij meerdere gekoppelde kinderen kies je bovenaan welk kind
 - **Voortgang**: cijfers en aanwezigheidsoverzicht van het kind
-- **Huiswerk meevolgen**: alle opgaven met status (open/afgerond), deadlines, bijlagen én de opmerkingen die de docent bij het kind schreef
+- **Huiswerk meevolgen**: alle opgaven met status (open/afgerond), bijlagen én de opmerkingen die de docent bij het kind schreef — alleen huiswerk dat voor dit kind bedoeld is
 - **Rooster**: de lessen van het kind
 - **Berichten**: kan zelf **gesprekken beginnen met de docenten van het kind**, ontvangt klas-/oudersberichten van docent en admin, en kan overal op reageren
 - Alles is read-only: een ouder kan niets wijzigen, alleen volgen en communiceren

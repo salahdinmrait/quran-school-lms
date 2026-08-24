@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { PersonenZoeker } from "@/components/PersonenZoeker";
 import { MessageSquare, Send, Inbox, ChevronDown, ChevronUp, Loader2, CornerDownRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ interface BerichtUit {
   replies: ThreadMessage[];
 }
 
-interface Persoon { id: string; name: string; kindNaam?: string; }
+interface Persoon { id: string; name: string; email?: string; kindNaam?: string; }
 interface Klas {
   id: string;
   naam: string;
@@ -96,13 +97,6 @@ export default function BerichtenPage() {
     doelType === "LEERLINGEN" ? getAllPersonen("leerlingen") :
     doelType === "OUDERS" ? getAllPersonen("ouders") : [];
 
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  function selectAll() { setSelectedIds(allePersonen.map((p) => p.id)); }
   function deselectAll() { setSelectedIds([]); }
 
   async function handleSend(e: React.FormEvent) {
@@ -388,32 +382,20 @@ export default function BerichtenPage() {
                           <span className="ml-2 text-green-700 font-normal">({selectedIds.length} geselecteerd)</span>
                         )}
                       </label>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={selectAll} className="text-xs text-green-700 hover:underline">Alles</button>
-                        <button type="button" onClick={deselectAll} className="text-xs text-gray-400 hover:underline">Niets</button>
-                      </div>
+                      {selectedIds.length > 0 && (
+                        <button type="button" onClick={deselectAll} className="text-xs text-gray-400 hover:underline">Selectie wissen</button>
+                      )}
                     </div>
-                    <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 divide-y divide-gray-100">
-                      {allePersonen.map((p) => (
-                        <label
-                          key={p.id}
-                          className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                            selectedIds.includes(p.id) ? "bg-green-50" : "hover:bg-gray-50"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(p.id)}
-                            onChange={() => toggleSelect(p.id)}
-                            className="accent-green-700"
-                          />
-                          <span className="text-sm text-gray-800">{p.name}</span>
-                          {p.kindNaam && (
-                            <span className="text-xs text-gray-400 ml-auto">kind: {p.kindNaam}</span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
+                    <PersonenZoeker
+                      personen={allePersonen.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        email: p.email,
+                        extra: p.kindNaam ? `kind: ${p.kindNaam}` : undefined,
+                      }))}
+                      selectedIds={selectedIds}
+                      onChange={setSelectedIds}
+                    />
                   </div>
                 )}
 

@@ -10,7 +10,6 @@ const schema = z.object({
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
   actief: z.boolean(),
   telefoon: z.string().max(30).optional().nullable(),
-  isVolwassen: z.boolean().optional(),
   nieuwWachtwoord: z.string().min(8, "Wachtwoord moet minimaal 8 tekens hebben").optional(),
 });
 
@@ -26,7 +25,7 @@ export async function GET(
   const { id } = await params;
   const gebruiker = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, name: true, email: true, role: true, telefoon: true, actief: true, isVolwassen: true, schoolId: true },
+    select: { id: true, name: true, email: true, role: true, telefoon: true, actief: true, schoolId: true },
   });
 
   if (!gebruiker || gebruiker.schoolId !== (session.user.schoolId ?? null)) {
@@ -102,7 +101,6 @@ export async function PUT(
       email: parsed.data.email,
       role: parsed.data.role,
       actief: parsed.data.actief,
-      isVolwassen: parsed.data.role === "LEERLING" ? !!parsed.data.isVolwassen : false,
     };
 
     if (parsed.data.telefoon !== undefined) {

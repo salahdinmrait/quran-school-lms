@@ -19,7 +19,15 @@ export async function GET() {
     include: {
       klas: { include: { docenten: { include: { docent: { select: { id: true, name: true } } } } } },
       vak: { select: { id: true, naam: true } },
+      // Alleen huiswerk dat voor déze leerling bedoeld is: leeg doellijstje =
+      // hele klas, anders moet de leerling erin staan.
       huiswerk: {
+        where: {
+          OR: [
+            { doelLeerlingen: { none: {} } },
+            { doelLeerlingen: { some: { leerlingId } } },
+          ],
+        },
         include: {
           vak: true,
           inleveringen: {
@@ -36,7 +44,10 @@ export async function GET() {
     ...les,
     hasBijlage: !!les.bijlageNaam,
     docenten: les.klas.docenten.map((kd) => kd.docent),
-    huiswerk: huiswerk.map(({ bijlageData: _hd, ...hw }) => ({ ...hw, hasBijlage: !!hw.bijlageNaam })),
+    huiswerk: huiswerk.map(({ bijlageData: _hd, deadline: _dl, ...hw }) => ({
+      ...hw,
+      hasBijlage: !!hw.bijlageNaam,
+    })),
   }));
 
   return NextResponse.json(result);

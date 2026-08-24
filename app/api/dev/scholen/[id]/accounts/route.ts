@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isDevAuthenticated } from "@/lib/dev-auth";
+import { generatePassword } from "@/lib/wachtwoord";
 import { hash } from "bcryptjs";
 import { z } from "zod";
 
@@ -14,14 +15,6 @@ const accountSchema = z.object({
 const bodySchema = z.object({
   accounts: z.array(accountSchema).min(1),
 });
-
-function generatePassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  let pw = "";
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  for (const b of bytes) pw += chars[b % chars.length];
-  return pw;
-}
 
 // POST /api/dev/scholen/[id]/accounts — create one or more accounts for a school.
 // Returns the (generated) passwords so the developer can hand them over.
