@@ -108,8 +108,11 @@ school aansluit:
    details. Elke rij wordt een account. **Er gaat bij de import bewust geen
    mail uit.**
 4. **Inloggegevens versturen** — op dezelfde schoolpagina in `/dev` staat een
-   blok met drie tellers (accounts klaar / al verstuurd / nog niet verstuurd)
-   en de knop **"Stuur inloggegevens (N)"**, met bevestiging. Pas dan krijgt
+   blok met drie tellers (accounts klaar / al verstuurd / nog niet verstuurd),
+   een uitklapbare lijst **"Wie heeft er nog niets gehad?"** met naam, rol en
+   e-mailadres, en de knop **"Stuur inloggegevens (N)"**, met bevestiging. In
+   het accountoverzicht links krijgen diezelfde mensen het label
+   *geen inloggegevens*. Pas na de bevestiging krijgt
    iedereen een vers tijdelijk wachtwoord en een welkomstmail. Wie al een mail
    heeft gehad wordt overgeslagen — dat staat als
    `PasswordResetToken.verstuurdOp` in de database, dus een refresh, een
@@ -283,7 +286,7 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | `api/dev/scholen/[id]` | GET/PATCH/DELETE | Schooldetails / (de)activeren / **definitief verwijderen** (zie §13) |
 | `api/dev/scholen/[id]/accounts` | GET | Alle accounts van die school |
 | `api/dev/scholen/[id]/import` | POST | **Excel bulk-import** (maakt alleen accounts aan, mailt niet), zie §7 |
-| `api/dev/scholen/[id]/inloggegevens` | GET/POST | Tellers opvragen / **inloggegevens versturen** — de aparte, bewuste mailactie |
+| `api/dev/scholen/[id]/inloggegevens` | GET/POST | Tellers + lijst van wie nog niets kreeg / **inloggegevens versturen** — de aparte, bewuste mailactie |
 | `api/dev/import-template` | GET | Download het Excel-sjabloon |
 
 ### Achtergrondtaken
@@ -337,7 +340,12 @@ een tweede import nooit per ongeluk opnieuw kan mailen. Op de schoolpagina in
 `/dev` staat een blok met drie tellers en de knop **"Stuur inloggegevens (N)"**
 met bevestigingsvraag.
 
-- `GET /api/dev/scholen/[id]/inloggegevens` → `{ klaar, alVerstuurd, nietVerstuurd }`.
+- `GET /api/dev/scholen/[id]/inloggegevens` →
+  `{ klaar, alVerstuurd, nietVerstuurd, wachtenden }`. `wachtenden` is
+  **exact de verzameling die de POST zou aanschrijven** (`id`, `name`, `email`,
+  `role`) — één query, dus de lijst en de teller kunnen niet uit elkaar lopen.
+  De dev-console toont hem uitklapbaar én markeert dezelfde accounts in het
+  overzicht per rol.
 - `POST` daarop verstuurt alleen naar accounts die nog **geen** verstuurd token
   hebben. Per persoon: een vers tijdelijk wachtwoord (opgeslagen als hash), een
   nieuw `PasswordResetToken` van 7 dagen, de welkomstmail (§8) en pas daarna

@@ -13,8 +13,9 @@ async function school(id: string) {
   return { school: rij } as const;
 }
 
-// GET /api/dev/scholen/[id]/inloggegevens — tellers voor de dev-console:
-// hoeveel accounts er zijn, hoeveel er al gemaild zijn en hoeveel nog niet.
+// GET /api/dev/scholen/[id]/inloggegevens — tellers voor de dev-console plus de
+// lijst met accounts die nog niets hebben gehad: precies de mensen die de POST
+// zou aanschrijven, zodat je vóór het versturen ziet om wie het gaat.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await school(id);

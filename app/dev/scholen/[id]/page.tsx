@@ -25,11 +25,26 @@ interface SchoolDetail {
   _count: { klassen: number; vakken: number };
 }
 
+interface MailStatus {
+  klaar: number;
+  alVerstuurd: number;
+  nietVerstuurd: number;
+  /** Wie er nog geen inloggegevens heeft gehad — komt mee uit de GET */
+  wachtenden: { id: string; name: string; email: string; role: string }[];
+}
+
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admins",
   DOCENT: "Docenten",
   LEERLING: "Leerlingen",
   OUDER: "Ouders",
+};
+
+const ROLE_ENKEL: Record<string, string> = {
+  ADMIN: "Admin",
+  DOCENT: "Docent",
+  LEERLING: "Leerling",
+  OUDER: "Ouder",
 };
 
 export default function SchoolDetailPage() {
@@ -71,11 +86,8 @@ export default function SchoolDetailPage() {
   } | null>(null);
 
   // Inloggegevens versturen — bewust los van de import
-  const [mailStatus, setMailStatus] = useState<{
-    klaar: number;
-    alVerstuurd: number;
-    nietVerstuurd: number;
-  } | null>(null);
+  const [mailStatus, setMailStatus] = useState<MailStatus | null>(null);
+  const [wachtLijstOpen, setWachtLijstOpen] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [mailLoading, setMailLoading] = useState(false);
   const [mailError, setMailError] = useState<string | null>(null);
@@ -205,6 +217,7 @@ export default function SchoolDetailPage() {
         klaar: data.klaar,
         alVerstuurd: data.alVerstuurd,
         nietVerstuurd: data.nietVerstuurd,
+        wachtenden: data.wachtenden ?? [],
       });
       setMailKlaar(
         `${data.verstuurd} verstuurd` +
@@ -227,6 +240,9 @@ export default function SchoolDetailPage() {
     "w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500";
 
   const byRole = (role: string) => school.gebruikers.filter((g) => g.role === role);
+
+  // Dezelfde bron als de tellers: wie hier in staat, staat op de verzendlijst.
+  const wachtOpMail = new Set((mailStatus?.wachtenden ?? []).map((w) => w.id));
 
   return (
     <div>
@@ -275,16 +291,26 @@ export default function SchoolDetailPage() {
                 ) : (
                   <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-900">
                     {accounts.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                        <div>
+                      <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                        <div className="min-w-0">
                           <span className="font-medium">{a.name}</span>
                           <span className="ml-2 text-slate-400">{a.email}</span>
                         </div>
-                        {!a.actief && (
-                          <span className="rounded-full bg-red-900 px-2 py-0.5 text-xs text-red-300">
-                            inactief
-                          </span>
-                        )}
+                        <div className="flex shrink-0 items-center gap-2">
+                          {wachtOpMail.has(a.id) && (
+                            <span
+                              className="rounded-full bg-amber-900 px-2 py-0.5 text-xs text-amber-300"
+                              title="Deze persoon heeft nog geen inloggegevens gemaild gekregen"
+                            >
+                              geen inloggegevens
+                            </span>
+                          )}
+                          {!a.actief && (
+                            <span className="rounded-full bg-red-900 px-2 py-0.5 text-xs text-red-300">
+                              inactief
+                            </span>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -465,6 +491,38 @@ export default function SchoolDetailPage() {
               </div>
             ) : (
               <p className="text-xs text-slate-500">Tellers laden...</p>
+            )}
+
+            {mailStatus && mailStatus.nietVerstuurd > 0 && (
+              <div className="rounded-md border border-slate-800 bg-slate-950">
+                <button
+                  type="button"
+                  onClick={() => setWachtLijstOpen((v) => !v)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-300 hover:bg-slate-900"
+                >
+                  <span>
+                    {wachtLijstOpen ? "▾" : "▸"} Wie heeft er nog niets gehad? (
+                    {mailStatus.nietVerstuurd})
+                  </span>
+                  <span className="text-slate-500">
+                    {wachtLijstOpen ? "verbergen" : "tonen"}
+                  </span>
+                </button>
+                {wachtLijstOpen && (
+                  <ul className="max-h-72 divide-y divide-slate-800 overflow-y-auto border-t border-slate-800">
+                    {mailStatus.wachtenden.map((w) => (
+                      <li key={w.id} className="px-3 py-1.5 text-xs">
+                        <span className="text-slate-200">{w.name}</span>
+                        <span className="ml-1 text-slate-500">
+                          · {ROLE_ENKEL[w.role] ?? w.role}
+                        </span>
+                        <br />
+                        <span className="font-mono text-slate-400">{w.email}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
 
             {mailError && <p className="text-sm text-red-400">{mailError}</p>}

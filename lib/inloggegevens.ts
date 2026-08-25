@@ -15,6 +15,14 @@ import { generatePassword } from "@/lib/wachtwoord";
 
 const wacht = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Eén account dat nog op zijn inloggegevens wacht. */
+export interface WachtendAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
 export interface InloggegevensStatus {
   /** Alle actieve accounts van de school die een mail kunnen ontvangen */
   klaar: number;
@@ -22,6 +30,11 @@ export interface InloggegevensStatus {
   alVerstuurd: number;
   /** Wachten nog op hun inloggegevens */
   nietVerstuurd: number;
+  /**
+   * Wíe er nog wacht — dezelfde verzameling die de POST zou aanschrijven, zodat
+   * de dev-console vóór het versturen precies laat zien wie er mail krijgt.
+   */
+  wachtenden: WachtendAccount[];
 }
 
 /** Accounts die nog nooit inloggegevens gemaild hebben gekregen. */
@@ -35,11 +48,16 @@ function nogNietVerstuurdWhere(schoolId: string) {
 }
 
 export async function inloggegevensStatus(schoolId: string): Promise<InloggegevensStatus> {
-  const [klaar, nietVerstuurd] = await Promise.all([
+  const [klaar, wachtenden] = await Promise.all([
     prisma.user.count({ where: { schoolId, actief: true, verwijderdOp: null } }),
-    prisma.user.count({ where: nogNietVerstuurdWhere(schoolId) }),
+    prisma.user.findMany({
+      where: nogNietVerstuurdWhere(schoolId),
+      select: { id: true, name: true, email: true, role: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    }),
   ]);
-  return { klaar, alVerstuurd: klaar - nietVerstuurd, nietVerstuurd };
+  const nietVerstuurd = wachtenden.length;
+  return { klaar, alVerstuurd: klaar - nietVerstuurd, nietVerstuurd, wachtenden };
 }
 
 export interface VerstuurResultaat {
