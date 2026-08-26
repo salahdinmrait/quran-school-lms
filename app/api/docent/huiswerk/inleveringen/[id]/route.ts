@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // PUT /api/docent/huiswerk/inleveringen/[id]
 // Body: { opmerking: string }
@@ -15,7 +16,9 @@ export async function PUT(
   }
 
   const { id } = await params;
-  const { opmerking } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { opmerking } = gelezen.data;
 
   if (typeof opmerking !== "string" || !opmerking.trim()) {
     return NextResponse.json({ error: "opmerking is verplicht" }, { status: 400 });

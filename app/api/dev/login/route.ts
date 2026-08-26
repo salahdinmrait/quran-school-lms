@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { expectedDevToken, DEV_COOKIE } from "@/lib/dev-auth";
 import { telPogingen, registreerPoging, clientIp } from "@/lib/rate-limit";
+import { leesJson } from "@/lib/json-body";
 
 // POST /api/dev/login — developer console login with DEVELOPER_SECRET
 export async function POST(req: NextRequest) {
-  const { secret } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { secret } = gelezen.data;
 
   if (!process.env.DEVELOPER_SECRET) {
     return NextResponse.json(

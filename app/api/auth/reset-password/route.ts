@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { leesJson } from "@/lib/json-body";
 
 // POST /api/auth/reset-password — set new password with valid token
 export async function POST(req: NextRequest) {
-  const { token, nieuwWachtwoord } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { token, nieuwWachtwoord } = gelezen.data;
   if (!token || !nieuwWachtwoord) {
     return NextResponse.json({ error: "Token en nieuw wachtwoord zijn verplicht" }, { status: 400 });
   }

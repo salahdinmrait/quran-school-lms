@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
+import { leesJson } from "@/lib/json-body";
 
 const ALLOWED_TYPES = [
   // Images
@@ -26,7 +27,9 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const body = (await request.json()) as HandleUploadBody;
+  const gelezen = await leesJson(request);
+  if (!gelezen.ok) return gelezen.response;
+  const body = gelezen.data as HandleUploadBody;
 
   try {
     const jsonResponse = await handleUpload({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isDevAuthenticated } from "@/lib/dev-auth";
+import { leesJson } from "@/lib/json-body";
 
 // GET /api/dev/scholen/[id] — school detail with all accounts
 export async function GET(
@@ -43,7 +44,9 @@ export async function PATCH(
   const { id } = await params;
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const data: Record<string, unknown> = {};
     for (const key of ["naam", "plaats", "adres", "contactEmail", "contactTelefoon"] as const) {
       if (typeof body[key] === "string") data[key] = body[key] || null;

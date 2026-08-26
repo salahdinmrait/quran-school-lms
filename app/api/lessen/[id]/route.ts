@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // DELETE /api/lessen/[id] — admin (eigen school) of docent (eigen klas)
 export async function DELETE(
@@ -69,7 +70,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Geen toegang tot deze les" }, { status: 403 });
   }
 
-  const body = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const body = gelezen.data;
   const data: Record<string, unknown> = {};
   for (const f of ["begintijd", "eindtijd", "lokaal", "beschrijving"] as const) {
     if (body[f] !== undefined) data[f] = body[f] || null;

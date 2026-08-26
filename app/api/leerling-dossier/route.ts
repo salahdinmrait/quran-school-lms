@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // Mag deze docent/admin het dossier van deze leerling zien/bewerken?
 // - ADMIN: leerling moet in dezelfde school zitten.
@@ -57,7 +58,9 @@ export async function POST(req: NextRequest) {
   if (!session?.user || (session.user.role !== "DOCENT" && session.user.role !== "ADMIN")) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
-  const { leerlingId, titel, inhoud } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { leerlingId, titel, inhoud } = gelezen.data;
   if (!leerlingId || !inhoud?.trim()) {
     return NextResponse.json({ error: "leerlingId en inhoud zijn verplicht" }, { status: 400 });
   }

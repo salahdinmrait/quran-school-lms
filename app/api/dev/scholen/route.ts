@@ -4,6 +4,7 @@ import { isDevAuthenticated } from "@/lib/dev-auth";
 import { generatePassword } from "@/lib/wachtwoord";
 import { hash } from "bcryptjs";
 import { z } from "zod";
+import { leesJson } from "@/lib/json-body";
 
 const schoolSchema = z.object({
   naam: z.string().min(2),
@@ -48,7 +49,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const parsed = schoolSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(

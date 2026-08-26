@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { toegestaneOntvangerIds } from "@/lib/contacten";
+import { leesJson } from "@/lib/json-body";
 
 // GET /api/ouder/berichten
 export async function GET() {
@@ -42,7 +43,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { ontvangerId, ontvangerIds, onderwerp, inhoud } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { ontvangerId, ontvangerIds, onderwerp, inhoud } = gelezen.data;
   const doelIds: string[] = Array.from(
     new Set(
       (Array.isArray(ontvangerIds) ? ontvangerIds : ontvangerId ? [ontvangerId] : []).filter(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { userBehoortTotSchool } from "@/lib/school-scope";
+import { leesJson } from "@/lib/json-body";
+import { isUniekFout } from "@/lib/prisma-fouten";
 
 // GET /api/ouder/koppeling?ouderId=xxx — get linked children for an ouder (admin only)
 export async function GET(req: NextRequest) {
@@ -37,9 +39,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { ouderId, leerlingId } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { ouderId, leerlingId } = gelezen.data;
   if (!ouderId || !leerlingId) {
     return NextResponse.json({ error: "ouderId en leerlingId zijn verplicht" }, { status: 400 });
+  }
+
+  if (ouderId === leerlingId) {
+    return NextResponse.json({ error: "Iemand kan niet zijn eigen ouder zijn" }, { status: 400 });
   }
 
   const schoolId = session.user.schoolId ?? null;
@@ -48,6 +56,19 @@ export async function POST(req: NextRequest) {
     !(await userBehoortTotSchool(leerlingId, schoolId))
   ) {
     return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
+  }
+
+  // Een schoolcheck alleen laat een docent- of adminaccount als "ouder" of als
+  // "kind" koppelen; de rollen moeten ook kloppen.
+  const [ouder, leerling] = await Promise.all([
+    prisma.user.findUnique({ where: { id: ouderId }, select: { role: true, verwijderdOp: true } }),
+    prisma.user.findUnique({ where: { id: leerlingId }, select: { role: true, verwijderdOp: true } }),
+  ]);
+  if (!ouder || ouder.verwijderdOp || ouder.role !== "OUDER") {
+    return NextResponse.json({ error: "Dit account is geen ouder" }, { status: 400 });
+  }
+  if (!leerling || leerling.verwijderdOp || leerling.role !== "LEERLING") {
+    return NextResponse.json({ error: "Dit account is geen leerling" }, { status: 400 });
   }
 
   try {
@@ -65,7 +86,15 @@ export async function POST(req: NextRequest) {
       data: { ouderId, leerlingId },
     });
     return NextResponse.json(koppeling, { status: 201 });
-  } catch {
+  } catch (err) {
+    // Twee gelijktijdige koppelingen op hetzelfde kind: de tweede verliest de
+    // race op de unieke kolom. Dat is een conflict, geen serverfout.
+    if (isUniekFout(err)) {
+      return NextResponse.json(
+        { error: "Dit kind is al gekoppeld aan een andere ouder. Ontkoppel die eerst." },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: "Koppelen mislukt" }, { status: 500 });
   }
 }
@@ -77,7 +106,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { ouderId, leerlingId } = await req.json();
+  const gelezen2 = await leesJson(req);
+  if (!gelezen2.ok) return gelezen2.response;
+  const { ouderId, leerlingId } = gelezen2.data;
   try {
     await prisma.ouderLeerling.deleteMany({
       where: { ouderId, leerlingId },

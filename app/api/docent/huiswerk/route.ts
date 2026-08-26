@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // GET /api/docent/huiswerk[?lesId=xxx] — huiswerk for docent's klassen
 // If lesId is provided, returns only huiswerk linked to that specific les
@@ -70,11 +71,21 @@ export async function POST(req: NextRequest) {
   }
 
   const docentId = session.user.id;
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
   const { titel, beschrijving, vakId, lesId, leerlingIds,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
+  }
+  // Prisma slikt geen array als id: zonder deze controle wordt { id: ["x"] }
+  // een databasefout en dus een 500 in plaats van een nette 400.
+  if (typeof titel !== "string" || typeof vakId !== "string") {
+    return NextResponse.json({ error: "titel en vakId moeten teksten zijn" }, { status: 400 });
+  }
+  if (lesId !== undefined && lesId !== null && typeof lesId !== "string") {
+    return NextResponse.json({ error: "lesId moet een tekst zijn" }, { status: 400 });
   }
   if (!lesId) {
     return NextResponse.json(

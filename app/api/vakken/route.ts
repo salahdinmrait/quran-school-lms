@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { vakSchema } from "@/lib/validations";
+import { leesJson } from "@/lib/json-body";
 
 export async function GET() {
   const session = await auth();
@@ -32,7 +33,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const parsed = vakSchema.safeParse(body);
 
     if (!parsed.success) {

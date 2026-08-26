@@ -4,10 +4,13 @@ import { sendMail, passwordResetEmail } from "@/lib/email";
 import { telPogingen, registreerPoging, clientIp } from "@/lib/rate-limit";
 import { wachtwoordInstellenUrl } from "@/lib/urls";
 import crypto from "crypto";
+import { leesJson } from "@/lib/json-body";
 
 // POST /api/auth/forgot-password — request a password reset link
 export async function POST(req: NextRequest) {
-  const { email } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { email } = gelezen.data;
   if (!email) return NextResponse.json({ error: "E-mail is verplicht" }, { status: 400 });
 
   const emailNorm = String(email).toLowerCase().trim();

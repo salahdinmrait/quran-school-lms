@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
+import { docentMagBijCijfer } from "@/lib/docent-scope";
 
 export async function DELETE(
   _req: NextRequest,
@@ -12,6 +14,12 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  // Alleen cijfers uit de eigen klassen/vakken; anders wist een docent met een
+  // geraden id het cijfer van een leerling van een andere school.
+  if (!(await docentMagBijCijfer(session.user.id, id))) {
+    return NextResponse.json({ error: "Cijfer niet gevonden" }, { status: 404 });
+  }
 
   try {
     await prisma.cijfer.delete({ where: { id } });
@@ -32,13 +40,25 @@ export async function PUT(
   }
 
   const { id } = await params;
+
+  if (!(await docentMagBijCijfer(session.user.id, id))) {
+    return NextResponse.json({ error: "Cijfer niet gevonden" }, { status: 404 });
+  }
+
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
   const { waarde, omschrijving, opmerking, bijlageNaam, bijlageUrl, bijlageData, bijlageType } =
-    await req.json();
+    gelezen.data;
 
   const data: Record<string, unknown> = {};
   if (waarde !== undefined) {
-    const num = parseFloat(waarde);
-    if (isNaN(num) || num < 1 || num > 10) {
+    const num =
+      typeof waarde === "number"
+        ? waarde
+        : typeof waarde === "string" && /^-?\d+([.,]\d+)?$/.test(waarde.trim())
+        ? parseFloat(waarde.trim().replace(",", "."))
+        : NaN;
+    if (!Number.isFinite(num) || num < 1 || num > 10) {
       return NextResponse.json({ error: "Waarde moet tussen 1 en 10 zijn" }, { status: 400 });
     }
     data.waarde = num;

@@ -4,6 +4,7 @@ import { isDevAuthenticated } from "@/lib/dev-auth";
 import { generatePassword } from "@/lib/wachtwoord";
 import { hash } from "bcryptjs";
 import { z } from "zod";
+import { leesJson } from "@/lib/json-body";
 
 const accountSchema = z.object({
   name: z.string().min(2),
@@ -34,7 +35,9 @@ export async function POST(
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     // Accept both a single account object and { accounts: [...] }
     const parsed = bodySchema.safeParse(
       Array.isArray(body.accounts) ? body : { accounts: [body] }

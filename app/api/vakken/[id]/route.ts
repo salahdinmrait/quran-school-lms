@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { vakSchema } from "@/lib/validations";
+import { leesJson } from "@/lib/json-body";
 
 export async function GET(
   _req: NextRequest,
@@ -15,8 +16,10 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const vak = await prisma.vak.findUnique({
-      where: { id },
+    // Ook lezen is schoolgebonden: zonder deze filter leest een beheerder van
+    // school B de vakken van school A op id.
+    const vak = await prisma.vak.findFirst({
+      where: { id, schoolId: session.user.schoolId ?? null },
       include: { _count: { select: { klassen: true } } },
     });
 
@@ -47,7 +50,9 @@ export async function PUT(
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const parsed = vakSchema.safeParse(body);
 
     if (!parsed.success) {

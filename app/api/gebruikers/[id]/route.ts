@@ -3,10 +3,12 @@ import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import { leesJson } from "@/lib/json-body";
+import { isUniekFout } from "@/lib/prisma-fouten";
 
 const schema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
+  email: z.string().email().transform((v) => v.trim().toLowerCase()),
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
   actief: z.boolean(),
   telefoon: z.string().max(30).optional().nullable(),
@@ -86,7 +88,9 @@ export async function PUT(
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const parsed = schema.safeParse(body);
 
     if (!parsed.success) {
@@ -117,7 +121,10 @@ export async function PUT(
     });
 
     return NextResponse.json({ id: gebruiker.id, name: gebruiker.name });
-  } catch {
+  } catch (err) {
+    if (isUniekFout(err)) {
+      return NextResponse.json({ error: "E-mailadres is al in gebruik" }, { status: 409 });
+    }
     return NextResponse.json({ error: "Kon gebruiker niet bijwerken" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // Studiemateriaal: docent deelt bestand/link met een klas en/of vak.
 // GET — rol-afhankelijk: admin (hele school), docent (eigen school),
@@ -65,8 +66,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
   const { titel, beschrijving, linkUrl, klasId, vakId,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
 
   if (!titel) {
     return NextResponse.json({ error: "Titel is verplicht" }, { status: 400 });

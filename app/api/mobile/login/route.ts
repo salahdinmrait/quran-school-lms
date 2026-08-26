@@ -3,6 +3,7 @@ import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signMobileToken } from "@/lib/mobile-jwt";
 import { telPogingen, registreerPoging, wisPogingen, clientIp } from "@/lib/rate-limit";
+import { leesJson } from "@/lib/json-body";
 
 // Brute-force-bescherming: max mislukte pogingen binnen het venster
 const MAX_PER_EMAIL = 5; // per e-mailadres per 15 min
@@ -13,7 +14,9 @@ const VENSTER_MIN = 15;
 // Body: { email, password } → { token, user }
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const { email, password } = gelezen.data;
 
     if (!email || !password) {
       return NextResponse.json({ error: "E-mail en wachtwoord zijn verplicht" }, { status: 400 });

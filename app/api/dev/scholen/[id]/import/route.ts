@@ -60,8 +60,17 @@ export async function POST(
       return NextResponse.json({ error: "Geen bestand ontvangen" }, { status: 400 });
     }
 
+    // Een onleesbaar bestand is invoer van de gebruiker, geen serverfout: apart
+    // opvangen zodat het een 400 wordt en niet in de algemene catch belandt.
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await bestand.arrayBuffer());
+    try {
+      await workbook.xlsx.load(await bestand.arrayBuffer());
+    } catch {
+      return NextResponse.json(
+        { error: "Dit is geen geldig .xlsx-bestand. Gebruik het voorbeeldbestand als sjabloon." },
+        { status: 400 }
+      );
+    }
     const sheet = workbook.getWorksheet("Gebruikers") ?? workbook.worksheets[0];
     if (!sheet) {
       return NextResponse.json({ error: "Geen werkblad gevonden in het bestand" }, { status: 400 });

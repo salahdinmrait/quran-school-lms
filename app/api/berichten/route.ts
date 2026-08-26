@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { toegestaneOntvangerIds } from "@/lib/contacten";
+import { leesJson } from "@/lib/json-body";
 
 // GET /api/berichten — inbox + deduplicated verzonden
 export async function GET() {
@@ -123,8 +124,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
   const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
+          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
 
   if (!onderwerp || !inhoud || !doelType) {
     return NextResponse.json(
@@ -139,7 +142,10 @@ export async function POST(req: NextRequest) {
   // Een docent mag alleen een klas aanschrijven waar hij zelf aan gekoppeld is;
   // een admin mag elke klas van de eigen school. Zonder deze check was het
   // schoolId genoeg en kon een docent elke klas van de school mailen.
-  async function klasVanDezeGebruiker(klasId: string) {
+  async function klasVanDezeGebruiker(klasId: unknown) {
+    // Zonder deze controle wordt een ontbrekend doelId een findFirst zonder id
+    // en gaat het bericht naar de eerste willekeurige klas van de school.
+    if (typeof klasId !== "string" || klasId.length === 0) return null;
     return prisma.klas.findFirst({
       where: {
         id: klasId,
@@ -198,6 +204,9 @@ export async function POST(req: NextRequest) {
     if (isLeerling) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
+    if (typeof doelId !== "string" || !doelId) {
+      return NextResponse.json({ error: "doelId is verplicht bij dit doelType" }, { status: 400 });
+    }
     const klas = await klasVanDezeGebruiker(doelId);
     if (!klas) {
       return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
@@ -208,6 +217,9 @@ export async function POST(req: NextRequest) {
   } else if (doelType === "KLAS_OUDERS") {
     if (isLeerling) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    }
+    if (typeof doelId !== "string" || !doelId) {
+      return NextResponse.json({ error: "doelId is verplicht bij dit doelType" }, { status: 400 });
     }
     const klas = await klasVanDezeGebruiker(doelId);
     if (!klas) {
@@ -241,6 +253,25 @@ export async function POST(req: NextRequest) {
       { error: "Geen ontvangers gevonden voor dit doel" },
       { status: 400 }
     );
+  }
+
+  // Een reply moet aan een bericht hangen dat deze gebruiker zelf aangaat.
+  // Anders hangt iemand zijn bericht onder een willekeurig gesprek van twee
+  // anderen, en verschijnt het daar in beeld als "antwoord".
+  if (replyToId !== undefined && replyToId !== null) {
+    if (typeof replyToId !== "string") {
+      return NextResponse.json({ error: "replyToId moet een tekst zijn" }, { status: 400 });
+    }
+    const origineel = await prisma.bericht.findFirst({
+      where: { id: replyToId, OR: [{ verzenderId }, { ontvangerId: verzenderId }] },
+      select: { id: true },
+    });
+    if (!origineel) {
+      return NextResponse.json(
+        { error: "Je kunt alleen antwoorden op een bericht uit je eigen gesprekken" },
+        { status: 403 }
+      );
+    }
   }
 
   const groepId =

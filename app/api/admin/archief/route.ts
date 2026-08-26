@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 // Archief van soft-deleted items (personen, klassen, vakken) — alleen ADMIN.
 // GET    → lijst gearchiveerde items van de eigen school
@@ -43,7 +44,9 @@ export async function DELETE(req: NextRequest) {
   }
   const schoolId = session.user.schoolId ?? null;
 
-  const { type, id } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { type, id } = gelezen.data;
   if (!type || !id) {
     return NextResponse.json({ error: "type en id zijn verplicht" }, { status: 400 });
   }

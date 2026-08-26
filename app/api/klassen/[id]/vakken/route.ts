@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { klasBehoortTotSchool } from "@/lib/school-scope";
+import { leesJson } from "@/lib/json-body";
 
 export async function POST(
   req: NextRequest,
@@ -16,7 +17,9 @@ export async function POST(
   if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
     return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
   }
-  const { vakId } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { vakId } = gelezen.data;
 
   if (!vakId) {
     return NextResponse.json({ error: "vakId vereist" }, { status: 400 });
@@ -52,7 +55,9 @@ export async function DELETE(
   if (!(await klasBehoortTotSchool(klasId, session.user.schoolId ?? null))) {
     return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
   }
-  const { vakId } = await req.json();
+  const gelezen2 = await leesJson(req);
+  if (!gelezen2.ok) return gelezen2.response;
+  const { vakId } = gelezen2.data;
 
   try {
     await prisma.klasVak.deleteMany({ where: { klasId, vakId } });

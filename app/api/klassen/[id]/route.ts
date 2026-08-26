@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 async function getOwnedKlas(id: string, schoolId: string | null) {
   const klas = await prisma.klas.findUnique({ where: { id } });
@@ -56,7 +57,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
   }
 
-  const { naam, beschrijving } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { naam, beschrijving } = gelezen.data;
   if (naam !== undefined && (typeof naam !== "string" || naam.trim().length < 2)) {
     return NextResponse.json({ error: "Naam moet minimaal 2 tekens bevatten" }, { status: 400 });
   }

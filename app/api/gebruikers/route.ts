@@ -3,10 +3,14 @@ import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { z } from "zod";
+import { leesJson } from "@/lib/json-body";
+import { isUniekFout } from "@/lib/prisma-fouten";
 
 const schema = z.object({
   name: z.string().min(2),
-  email: z.string().email(),
+  // Inloggen normaliseert het adres al (lib/auth.ts). Doet aanmaken dat niet,
+  // dan bestaan "Jan@x.nl" en "jan@x.nl" naast elkaar en kan er maar één in.
+  email: z.string().email().transform((v) => v.trim().toLowerCase()),
   password: z.string().min(8),
   role: z.enum(["ADMIN", "DOCENT", "LEERLING", "OUDER"]),
   telefoon: z.string().max(30).optional().nullable(),
@@ -41,7 +45,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const gelezen = await leesJson(req);
+    if (!gelezen.ok) return gelezen.response;
+    const body = gelezen.data;
     const parsed = schema.safeParse(body);
 
     if (!parsed.success) {
@@ -69,7 +75,10 @@ export async function POST(req: NextRequest) {
       { id: gebruiker.id, name: gebruiker.name, email: gebruiker.email, role: gebruiker.role },
       { status: 201 }
     );
-  } catch {
+  } catch (err) {
+    if (isUniekFout(err)) {
+      return NextResponse.json({ error: "E-mailadres is al in gebruik" }, { status: 409 });
+    }
     return NextResponse.json({ error: "Kon gebruiker niet aanmaken" }, { status: 500 });
   }
 }

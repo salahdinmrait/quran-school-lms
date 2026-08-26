@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 const klasInclude = {
   include: {
@@ -47,8 +48,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
   const { klasId, vakId, datum, begintijd, eindtijd, lokaal, herhalen,
-          beschrijving, bijlageNaam, bijlageUrl, bijlageData, bijlageType } = await req.json();
+          beschrijving, bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
 
   if (!klasId || !datum || !begintijd || !eindtijd) {
     return NextResponse.json(
@@ -72,20 +75,52 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  try {
-    const startDate = new Date(datum);
-    const dates: Date[] = [startDate];
+  // Onleesbare invoer hoort een 400 te geven, geen 500 uit de database.
+  const startDate = new Date(datum);
+  if (Number.isNaN(startDate.getTime())) {
+    return NextResponse.json({ error: "Datum is niet leesbaar" }, { status: 400 });
+  }
 
-    if (herhalen?.totDatum) {
-      const endDate = new Date(herhalen.totDatum);
-      let current = new Date(startDate);
-      while (true) {
-        current = new Date(current);
-        current.setDate(current.getDate() + 7);
-        if (current > endDate) break;
-        dates.push(new Date(current));
-      }
+  const TIJD = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!TIJD.test(String(begintijd)) || !TIJD.test(String(eindtijd))) {
+    return NextResponse.json(
+      { error: "Begintijd en eindtijd moeten van de vorm uu:mm zijn" },
+      { status: 400 }
+    );
+  }
+  if (String(eindtijd) <= String(begintijd)) {
+    return NextResponse.json(
+      { error: "De eindtijd moet na de begintijd liggen" },
+      { status: 400 }
+    );
+  }
+
+  const dates: Date[] = [startDate];
+
+  if (herhalen?.totDatum) {
+    const endDate = new Date(herhalen.totDatum);
+    if (Number.isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: "Einddatum van de herhaling is niet leesbaar" }, { status: 400 });
     }
+    // Een schooljaar is ruim genoeg. Zonder grens maakt één verzoek met een
+    // einddatum in 2045 duizenden lessen aan.
+    const MAX_LESSEN = 60;
+    let current = new Date(startDate);
+    while (true) {
+      current = new Date(current);
+      current.setDate(current.getDate() + 7);
+      if (current > endDate) break;
+      if (dates.length >= MAX_LESSEN) {
+        return NextResponse.json(
+          { error: `Een herhaling maakt maximaal ${MAX_LESSEN} lessen. Kies een kortere periode.` },
+          { status: 400 }
+        );
+      }
+      dates.push(new Date(current));
+    }
+  }
+
+  try {
 
     const created = await prisma.$transaction(
       dates.map((d) =>

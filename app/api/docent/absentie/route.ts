@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leesJson } from "@/lib/json-body";
 
 const VALID_STATUSES = ["AANWEZIG", "AFWEZIG", "TE_LAAT", "GEOORLOOFD"];
 
@@ -46,7 +47,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   }
 
-  const { lesId, leerlingId, status } = await req.json();
+  const gelezen = await leesJson(req);
+  if (!gelezen.ok) return gelezen.response;
+  const { lesId, leerlingId, status } = gelezen.data;
 
   if (!lesId || !leerlingId || !status) {
     return NextResponse.json(
