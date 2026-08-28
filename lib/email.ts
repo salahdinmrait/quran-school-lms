@@ -286,3 +286,27 @@ ${knop(`${appUrl}/leerling/berichten`, "Bericht lezen")}
     voetnoot: "omdat er een nieuw bericht voor u klaarstaat in Jadwal.",
   });
 }
+
+// Waarschuwing aan de beheerder (BEHEERDER_EMAIL) zodra de Vercel Blob-opslag
+// voor bijlages de ingestelde drempel nadert — zie app/api/cron/blob-opslag.
+export function opslagWaarschuwingEmail(gebruiktMb: number, limietMb: number): string {
+  const percentage = Math.round((gebruiktMb / limietMb) * 100);
+  const inhoud = `
+        ${alinea(`De bijlage-opslag van Jadwal (Vercel Blob) zit op <strong style="font-weight:bold;">${percentage}%</strong> van de gratis grens.`)}
+${paneel("Opslag", [
+  `Gebruikt: <strong style="font-weight:bold;">${gebruiktMb} MB</strong> van ${limietMb} MB`,
+])}
+        ${alinea(
+          "Boven de gratis 1 GB gaat Vercel automatisch verder rekenen (ongeveer 2 cent per extra GB per maand) — er gaat niets stuk, maar dit is een goed moment om het gebruik te bekijken of een betaald plan te overwegen.",
+          "24px 0 40px 0"
+        )}`;
+
+  return mailLayout({
+    titel: "Opslag nadert de gratis grens",
+    preheader: `De bijlage-opslag zit op ${percentage}% van de gratis 1 GB.`,
+    kop: "Opslag nadert de gratis grens",
+    inhoud,
+    ontvangerEmail: "",
+    voetnoot: "omdat de bijlage-opslag de ingestelde waarschuwingsgrens heeft bereikt.",
+  });
+}

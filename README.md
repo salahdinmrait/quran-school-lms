@@ -494,15 +494,22 @@ bericht bijgewerkt. Stap-voor-stap in
 
 ## 12. Bestandsbijlagen (uploads)
 
-- Kleine bijlagen (foto's/pdf's, tot 4 MB) via de app: base64 in het model
-  zelf (`bijlageData`) als legacy-fallback.
-- Grotere bestanden (video's tot 500 MB) en nieuwe uploads via de webapp:
-  `api/upload` → **Vercel Blob**, publieke maar niet-raadbare URL in
-  `bijlageUrl`.
+- Bijlagen (foto's/pdf's, tot 4 MB) via de app: `api/bijlage-upload` → directe
+  server-side upload naar **Vercel Blob** voor elke rol (leerling, ouder,
+  docent, admin), publieke maar niet-raadbare URL in `bijlageUrl`. De 4 MB
+  gaat ongecodeerd als multipart mee, niet als base64 — daarom past het ruim
+  binnen de 4,5 MB-lichaamslimiet van Vercel.
+- Grotere bestanden (video's tot 500 MB) via de webapp: `api/upload` — de
+  client-upload-token-flow van `@vercel/blob/client`, alleen voor docenten.
+- `bijlageData` (base64 in de rij zelf) is een legacy-fallback voor bijlages
+  van vóór deze overstap; nieuwe uploads gebruiken altijd `bijlageUrl`.
 - Bijlagen opvragen gaat via `api/bijlage/[id]` / `api/attachment/[type]/[id]`
   — deze routes checken eerst of de ingelogde gebruiker toegang mag hebben
   (zelfde rol/school-scoping als de rest van de API) voordat het bestand
-  wordt vrijgegeven.
+  wordt vrijgegeven; bij een `bijlageUrl` is dat een redirect, anders wordt
+  `bijlageData` als download geserveerd.
+- `api/cron/blob-opslag` (dagelijks, §14) bewaakt het totale Blob-gebruik en
+  mailt `BEHEERDER_EMAIL` bij 80% van de gratis 1 GB.
 
 ## 13. Soft delete & archief
 
@@ -556,10 +563,13 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
 | `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig |
+| `BEHEERDER_EMAIL` | Ontvanger van de dagelijkse Blob-opslagwaarschuwing (`/api/cron/blob-opslag`) — leeg = de waarschuwing wordt niet gemaild, alleen gelogd |
 
 Zonder SMTP-vars werkt alles nog steeds — mails worden dan alleen gelogd
 (§8). Zonder `CRON_SECRET`/`BACKUP_SECRET` slaat de backup-route direct af
-met een foutmelding (geen halve/onversleutelde backup mogelijk).
+met een foutmelding (geen halve/onversleutelde backup mogelijk). Zonder
+`BEHEERDER_EMAIL` draait de opslagcontrole gewoon door, maar wordt bij het
+bereiken van de drempel alleen een waarschuwing gelogd, niet gemaild.
 
 ## 15. Lokaal ontwikkelen
 
