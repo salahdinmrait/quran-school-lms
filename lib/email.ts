@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { LOGO_URL } from "./urls";
 
 // Email is optional — if SMTP is not configured, emails are logged to console.
 // Configure via .env:
@@ -160,10 +161,10 @@ function mailLayout(opties: {
     <!-- Header -->
     <tr>
       <td class="gutter" style="padding:24px 40px;border-bottom:1px solid ${KLEUR.rand};" bgcolor="${KLEUR.card}">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td align="left" style="font-family:${KOP_FONT};font-size:18px;line-height:24px;mso-line-height-rule:exactly;color:${KLEUR.ink};font-weight:bold;letter-spacing:-0.01em;">Jadwal</td>
-            <td align="right" style="font-family:${TEKST_FONT};font-size:11px;line-height:16px;mso-line-height-rule:exactly;color:${KLEUR.accent};letter-spacing:0.10em;text-transform:uppercase;">Quran School LMS</td>
+            <td style="padding-right:12px;line-height:0;font-size:0;"><img src="${LOGO_URL}" width="36" height="36" alt="" style="display:block;width:36px;height:36px;border:0;"></td>
+            <td style="font-family:${KOP_FONT};font-size:18px;line-height:24px;mso-line-height-rule:exactly;color:${KLEUR.ink};font-weight:bold;letter-spacing:-0.01em;">Jadwal<span style="color:${KLEUR.accent};">.</span></td>
           </tr>
         </table>
       </td>
@@ -185,7 +186,7 @@ ${inhoud}
     <!-- Footer -->
     <tr>
       <td class="gutter" style="padding:24px 40px 32px 40px;border-top:1px solid ${KLEUR.rand};" bgcolor="${KLEUR.bg}">
-        <p style="margin:0 0 8px 0;font-family:${TEKST_FONT};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:${KLEUR.gedempt};">Jadwal — Quran School LMS</p>
+        <p style="margin:0 0 8px 0;font-family:${TEKST_FONT};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:${KLEUR.gedempt};">Jadwal</p>
         <p style="margin:0;font-family:${TEKST_FONT};font-size:12px;line-height:19px;mso-line-height-rule:exactly;color:${KLEUR.vaag};">
           ${ontvangerEmail ? `Dit bericht is verstuurd naar ${esc(ontvangerEmail)} ` : "U ontvangt dit bericht "}${esc(voetnoot)}${postadres ? `<br>${esc(postadres)}` : ""}
         </p>

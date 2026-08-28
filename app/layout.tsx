@@ -22,7 +22,7 @@ const notoArabic = Noto_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "Jadwal — Quran School LMS",
+  title: "Jadwal",
   description: "Leerling Management Systeem voor Quran en Arabisch onderwijs",
 };
 

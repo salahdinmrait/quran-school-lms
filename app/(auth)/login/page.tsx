@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,10 +62,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-700 mb-4">
-            <GraduationCap className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-green-800">Quran School LMS</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/jadwal-seal.png" alt="" width={64} height={64} className="mx-auto mb-4 block h-16 w-16" />
+          <h1 className="text-2xl font-bold text-green-800">Jadwal</h1>
           <p className="text-gray-500 mt-1 text-sm">Leerling Management Systeem</p>
         </div>
 
