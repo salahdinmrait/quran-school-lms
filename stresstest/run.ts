@@ -20,13 +20,14 @@ import * as s07 from "./suites/07-accounts";
 import * as s08 from "./suites/08-aanwezigheid-koppeling";
 import * as s09 from "./suites/09-fuzz";
 import * as s10 from "./suites/10-races";
+import * as s11 from "./suites/11-bijlagen";
 
 interface SuiteModule {
   naam: string;
   draai: (c: Ctx) => Promise<void>;
 }
 
-const SUITES: SuiteModule[] = [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10];
+const SUITES: SuiteModule[] = [s01, s02, s03, s04, s05, s06, s07, s08, s09, s10, s11];
 
 const ERNST_VOLGORDE: Ernst[] = ["KRITIEK", "HOOG", "MIDDEL", "LAAG"];
 const MAX_RUNS = Number(process.env.STRESS_MAX_RUNS ?? 6);

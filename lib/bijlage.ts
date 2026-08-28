@@ -22,6 +22,104 @@ type Bijlage = {
 
 const SELECT = { bijlageNaam: true, bijlageUrl: true, bijlageData: true, bijlageType: true };
 
+/**
+ * Alleen URL's uit onze eigen Blob-opslag zijn te vertrouwen.
+ *
+ * `bijlageUrl` komt rechtstreeks uit de body van de client en eindigt in
+ * `bijlageAntwoord()` als een redirect. Zonder deze controle kan iedere
+ * ingelogde gebruiker een bijlage plaatsen die het slachtoffer doorstuurt naar
+ * een eigen server (phishing, en de ?token= uit de link lekt mee via Referer),
+ * of een onzin-URL opslaan waar `NextResponse.redirect()` op stukloopt (500).
+ */
+export function veiligeBijlageUrl(waarde: unknown): string | null {
+  if (typeof waarde !== "string") return null;
+  const schoon = waarde.trim();
+  if (schoon.length === 0 || schoon.length > 1024) return null;
+
+  let u: URL;
+  try {
+    u = new URL(schoon);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:") return null;
+  // Gebruikersnaam/wachtwoord in de URL is een klassieke verhullingstruc.
+  if (u.username || u.password) return null;
+  // Vercel Blob serveert vanaf <store>.public.blob.vercel-storage.com
+  if (!/^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/i.test(u.hostname)) return null;
+  return u.toString();
+}
+
+/** Gewone http(s)-link (studiemateriaal). Geen javascript:/data:/file:. */
+export function veiligeLink(waarde: unknown): string | null {
+  if (typeof waarde !== "string") return null;
+  const schoon = waarde.trim();
+  if (schoon.length === 0 || schoon.length > 2048) return null;
+  try {
+    const u = new URL(schoon);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+export interface BijlageVelden {
+  bijlageNaam: string | null;
+  bijlageUrl: string | null;
+  bijlageType: string | null;
+}
+
+/**
+ * Haalt de bijlagevelden uit een verzoekbody en keurt ze.
+ *
+ * `bijlageData` (base64) wordt niet meer geaccepteerd: bijlagen gaan sinds de
+ * overstap naar Vercel Blob via /api/bijlage-upload. Een base64-veld zou de
+ * database van Neon (0,5 GB gratis) laten vollopen; bestaande rijen worden nog
+ * wel uitgeleverd.
+ */
+export function leesBijlageVelden(
+  body: Record<string, unknown>
+): { ok: true; velden: BijlageVelden } | { ok: false; response: NextResponse } {
+  const fout = (bericht: string) =>
+    ({ ok: false as const, response: NextResponse.json({ error: bericht }, { status: 400 }) });
+
+  if (body.bijlageData !== undefined && body.bijlageData !== null && body.bijlageData !== "") {
+    return fout("bijlageData wordt niet meer geaccepteerd; upload via /api/bijlage-upload");
+  }
+
+  const ruweUrl = body.bijlageUrl;
+  let url: string | null = null;
+  if (ruweUrl !== undefined && ruweUrl !== null && ruweUrl !== "") {
+    url = veiligeBijlageUrl(ruweUrl);
+    if (!url) return fout("Ongeldige bijlage-URL");
+  }
+
+  const ruweNaam = body.bijlageNaam;
+  let naam: string | null = null;
+  if (ruweNaam !== undefined && ruweNaam !== null && ruweNaam !== "") {
+    if (typeof ruweNaam !== "string" || ruweNaam.length > 255) {
+      return fout("Ongeldige bijlagenaam");
+    }
+    naam = ruweNaam;
+  }
+
+  const ruwType = body.bijlageType;
+  let type: string | null = null;
+  if (ruwType !== undefined && ruwType !== null && ruwType !== "") {
+    if (typeof ruwType !== "string" || ruwType.length > 128) {
+      return fout("Ongeldig bijlagetype");
+    }
+    type = ruwType;
+  }
+
+  // Een naam zonder URL levert een bijlage-knop op die nergens heen gaat.
+  if (naam && !url) return fout("Bijlage mist een geldige URL");
+  if (url && !naam) naam = "bijlage";
+
+  return { ok: true, velden: { bijlageNaam: naam, bijlageUrl: url, bijlageType: type } };
+}
+
 export type Gebruiker = MobileTokenPayload;
 
 // Klassen van deze gebruiker, afhankelijk van zijn rol. Levert de filter die
@@ -137,8 +235,14 @@ export function bijlageAntwoord(item: Bijlage | null): NextResponse {
     return NextResponse.json({ error: "Geen bijlage gevonden" }, { status: 404 });
   }
 
-  if (item.bijlageUrl) {
-    return NextResponse.redirect(item.bijlageUrl);
+  // Ook rijen die vóór de URL-controle zijn opgeslagen worden hier nog gekeurd:
+  // een kwaadaardige of kapotte URL wordt nooit een redirect.
+  const veilig = veiligeBijlageUrl(item.bijlageUrl);
+  if (veilig) {
+    return NextResponse.redirect(veilig);
+  }
+  if (item.bijlageUrl && !item.bijlageData) {
+    return NextResponse.json({ error: "Geen bijlage gevonden" }, { status: 404 });
   }
 
   if (item.bijlageData) {

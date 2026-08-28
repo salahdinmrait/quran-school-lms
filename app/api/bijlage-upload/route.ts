@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/api-auth";
+import { telPogingen, registreerPoging } from "@/lib/rate-limit";
 
-// Toegestane bestandstypes voor bijlages bij huiswerk, berichten, cijfers, lessen
-// en studiemateriaal — zelfde lijst als /api/upload (de grote-bestanden-route voor
-// docenten op het web), maar hier voor alle rollen en met een kleine limiet.
 const ALLOWED_TYPES = [
   "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic",
   "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska",
@@ -15,24 +13,47 @@ const ALLOWED_TYPES = [
   "text/plain",
 ];
 
-// 4 MB — zelfde grens als MAX_BIJLAGE_BYTES in de app (lib/bijlage.ts). Boven de
-// 4,5 MB-lichaamslimiet van Vercel kwam je vroeger niet uit omdat het bestand als
-// base64 (×1,33) werd verstuurd; hier gaat het ongecodeerd als multipart mee, dus
-// 4 MB past ruim.
 const MAX_BIJLAGE_BYTES = 4 * 1024 * 1024;
 
-// POST /api/bijlage-upload
-// Directe server-side upload naar Vercel Blob voor de mobiele app: leerling,
-// ouder, docent en admin mogen allemaal een bijlage toevoegen aan huiswerk,
-// berichten, cijfers, lessen of studiemateriaal (in tegenstelling tot /api/upload,
-// dat alleen voor docenten via het web is). Simpeler dan de client-upload-token-
-// flow van /api/upload omdat bijlages hier altijd klein genoeg zijn om in één
-// verzoek mee te sturen.
+// Zonder limiet kan een enkel account de gratis 1 GB in een paar minuten
+// volgooien. 30 uploads per kwartier is ruim voor normaal gebruik (een klas
+// foto's achter elkaar) en houdt het leegtrekken van de opslag tegen.
+const MAX_UPLOADS = 30;
+const VENSTER_MINUTEN = 15;
+
+/**
+ * Maakt een veilige naam voor in het Blob-pad.
+ *
+ * `file.name` komt van de client. Ongefilterd bepaalt de gebruiker daarmee de
+ * sleutel in de opslag - inclusief "../" om buiten bijlagen/ te komen, waar de
+ * back-ups staan die de cron na 30 dagen opruimt.
+ */
+function veiligeBestandsnaam(ruw: string): string {
+  const basis = ruw.split(/[\/\\]/).pop() ?? "";
+  const schoon = basis
+    // Alles wat geen letter, cijfer of . _ - spatie is wordt een underscore.
+    // Dat vangt ook stuurtekens, zero-width en RTL-override in een keer.
+    .replace(/[^\p{L}\p{N}._\- ]/gu, "_")
+    .replace(/^\.+/, "")
+    .trim();
+  if (!schoon) return "bijlage";
+  return schoon.slice(0, 100);
+}
+
 export async function POST(request: Request): Promise<Response> {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Geen toegang" }, { status: 401 });
   }
+
+  const sleutel = `bijlage-upload:${session.user.id}`;
+  if ((await telPogingen(sleutel, VENSTER_MINUTEN)) >= MAX_UPLOADS) {
+    return NextResponse.json(
+      { error: "Te veel uploads achter elkaar. Probeer het over een kwartier opnieuw." },
+      { status: 429 }
+    );
+  }
+  await registreerPoging(sleutel);
 
   let form: FormData;
   try {
@@ -45,7 +66,9 @@ export async function POST(request: Request): Promise<Response> {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Geen bestand ontvangen" }, { status: 400 });
   }
-
+  if (file.size === 0) {
+    return NextResponse.json({ error: "Bestand is leeg" }, { status: 400 });
+  }
   if (file.size > MAX_BIJLAGE_BYTES) {
     return NextResponse.json({ error: "Bestand is te groot (max 4 MB)" }, { status: 413 });
   }
@@ -55,13 +78,15 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Bestandstype niet toegestaan" }, { status: 400 });
   }
 
+  const naam = veiligeBestandsnaam(file.name || "bijlage");
+
   try {
-    const blob = await put(`bijlagen/${file.name}`, file, {
+    const blob = await put(`bijlagen/${naam}`, file, {
       access: "public",
       addRandomSuffix: true,
       contentType: type,
     });
-    return NextResponse.json({ url: blob.url, naam: file.name, type });
+    return NextResponse.json({ url: blob.url, naam: file.name || naam, type });
   } catch (err) {
     console.error("[POST /api/bijlage-upload]", err);
     return NextResponse.json({ error: "Upload mislukt" }, { status: 500 });

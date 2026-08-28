@@ -3,6 +3,7 @@ import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
 import { docentGeeftLeerlingDitVak } from "@/lib/docent-scope";
+import { leesBijlageVelden } from "@/lib/bijlage";
 
 // GET /api/docent/cijfers — cijfers for docent's klassen (grouped by klas/vak)
 export async function GET() {
@@ -44,8 +45,10 @@ export async function POST(req: NextRequest) {
 
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
-  const { leerlingId, vakId, waarde, omschrijving, opmerking,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
+  const { leerlingId, vakId, waarde, omschrijving, opmerking } = gelezen.data;
+
+  const bijlage = leesBijlageVelden(gelezen.data);
+  if (!bijlage.ok) return bijlage.response;
 
   if (!leerlingId || !vakId || waarde === undefined) {
     return NextResponse.json(
@@ -90,10 +93,7 @@ export async function POST(req: NextRequest) {
         omschrijving: omschrijving || null,
         opmerking: opmerking || null,
         opmerkingOp: opmerking ? new Date() : null,
-        bijlageNaam: bijlageNaam || null,
-        bijlageUrl: bijlageUrl || null,
-        bijlageData: bijlageData || null,
-        bijlageType: bijlageType || null,
+        ...bijlage.velden,
       },
       include: {
         leerling: { select: { id: true, name: true } },

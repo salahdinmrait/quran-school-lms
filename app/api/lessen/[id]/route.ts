@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
+import { leesBijlageVelden } from "@/lib/bijlage";
 
 // DELETE /api/lessen/[id] — admin (eigen school) of docent (eigen klas)
 export async function DELETE(
@@ -85,10 +86,13 @@ export async function PATCH(
     data.datum = d;
   }
   if (body.bijlageNaam !== undefined) {
-    data.bijlageNaam = body.bijlageNaam || null;
-    data.bijlageUrl = body.bijlageUrl || null;
-    data.bijlageData = body.bijlageData || null;
-    data.bijlageType = body.bijlageType || null;
+    const bijlage = leesBijlageVelden(body);
+    if (!bijlage.ok) return bijlage.response;
+    data.bijlageNaam = bijlage.velden.bijlageNaam;
+    data.bijlageUrl = bijlage.velden.bijlageUrl;
+    data.bijlageType = bijlage.velden.bijlageType;
+    // Een vervangen of verwijderde bijlage laat geen oude base64 achter.
+    data.bijlageData = null;
   }
 
   try {

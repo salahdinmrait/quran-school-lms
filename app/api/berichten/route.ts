@@ -3,6 +3,7 @@ import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { toegestaneOntvangerIds } from "@/lib/contacten";
 import { leesJson } from "@/lib/json-body";
+import { leesBijlageVelden } from "@/lib/bijlage";
 
 // GET /api/berichten — inbox + deduplicated verzonden
 export async function GET() {
@@ -126,8 +127,10 @@ export async function POST(req: NextRequest) {
 
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
-  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
+  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId } = gelezen.data;
+
+  const bijlage = leesBijlageVelden(gelezen.data);
+  if (!bijlage.ok) return bijlage.response;
 
   if (!onderwerp || !inhoud || !doelType) {
     return NextResponse.json(
@@ -291,10 +294,7 @@ export async function POST(req: NextRequest) {
             groepId,
             doelLabel: groepId ? doelLabel : null,
             replyToId: replyToId ?? null,
-            bijlageNaam: bijlageNaam ?? null,
-            bijlageUrl: bijlageUrl ?? null,
-            bijlageData: bijlageData ?? null,
-            bijlageType: bijlageType ?? null,
+            ...bijlage.velden,
           },
         })
       )

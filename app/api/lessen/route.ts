@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
+import { leesBijlageVelden } from "@/lib/bijlage";
 
 const klasInclude = {
   include: {
@@ -51,7 +52,10 @@ export async function POST(req: NextRequest) {
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
   const { klasId, vakId, datum, begintijd, eindtijd, lokaal, herhalen,
-          beschrijving, bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
+          beschrijving } = gelezen.data;
+
+  const bijlage = leesBijlageVelden(gelezen.data);
+  if (!bijlage.ok) return bijlage.response;
 
   if (!klasId || !datum || !begintijd || !eindtijd) {
     return NextResponse.json(
@@ -134,10 +138,7 @@ export async function POST(req: NextRequest) {
             lokaal: lokaal || null,
             beschrijving: beschrijving || null,
             // Bijlage alleen op de eerste les bij herhaling (anders dupliceert grote data)
-            bijlageNaam: bijlageNaam || null,
-            bijlageUrl: bijlageUrl || null,
-            bijlageData: bijlageData || null,
-            bijlageType: bijlageType || null,
+            ...bijlage.velden,
           },
           include: {
             klas: klasInclude,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
+import { leesBijlageVelden, veiligeLink } from "@/lib/bijlage";
 
 // Studiemateriaal: docent deelt bestand/link met een klas en/of vak.
 // GET — rol-afhankelijk: admin (hele school), docent (eigen school),
@@ -68,8 +69,16 @@ export async function POST(req: NextRequest) {
 
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
-  const { titel, beschrijving, linkUrl, klasId, vakId,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
+  const { titel, beschrijving, linkUrl, klasId, vakId } = gelezen.data;
+
+  const bijlage = leesBijlageVelden(gelezen.data);
+  if (!bijlage.ok) return bijlage.response;
+
+  // Een link wordt in de app aanklikbaar; javascript:/data: horen daar niet.
+  const veiligeLinkUrl = linkUrl ? veiligeLink(linkUrl) : null;
+  if (linkUrl && !veiligeLinkUrl) {
+    return NextResponse.json({ error: "Ongeldige link" }, { status: 400 });
+  }
 
   if (!titel) {
     return NextResponse.json({ error: "Titel is verplicht" }, { status: 400 });
@@ -86,15 +95,12 @@ export async function POST(req: NextRequest) {
       data: {
         titel,
         beschrijving: beschrijving || null,
-        linkUrl: linkUrl || null,
+        linkUrl: veiligeLinkUrl,
         klasId: klasId || null,
         vakId: vakId || null,
         docentId: session.user.id,
         schoolId: session.user.schoolId ?? null,
-        bijlageNaam: bijlageNaam || null,
-        bijlageUrl: bijlageUrl || null,
-        bijlageData: bijlageData || null,
-        bijlageType: bijlageType || null,
+        ...bijlage.velden,
       },
       include: {
         docent: { select: { id: true, name: true } },

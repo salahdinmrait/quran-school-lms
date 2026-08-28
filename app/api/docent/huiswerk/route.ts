@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
+import { leesBijlageVelden } from "@/lib/bijlage";
 
 // GET /api/docent/huiswerk[?lesId=xxx] — huiswerk for docent's klassen
 // If lesId is provided, returns only huiswerk linked to that specific les
@@ -73,8 +74,10 @@ export async function POST(req: NextRequest) {
   const docentId = session.user.id;
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
-  const { titel, beschrijving, vakId, lesId, leerlingIds,
-          bijlageNaam, bijlageUrl, bijlageData, bijlageType } = gelezen.data;
+  const { titel, beschrijving, vakId, lesId, leerlingIds } = gelezen.data;
+
+  const bijlage = leesBijlageVelden(gelezen.data);
+  if (!bijlage.ok) return bijlage.response;
 
   if (!titel || !vakId) {
     return NextResponse.json({ error: "titel en vakId zijn verplicht" }, { status: 400 });
@@ -133,10 +136,7 @@ export async function POST(req: NextRequest) {
         beschrijving: beschrijving || null,
         vakId,
         lesId,
-        bijlageNaam: bijlageNaam || null,
-        bijlageUrl:  bijlageUrl  || null,   // Vercel Blob URL (preferred)
-        bijlageData: bijlageData || null,   // legacy base64 fallback
-        bijlageType: bijlageType || null,
+        ...bijlage.velden,
         ...(gevraagd.length > 0
           ? { doelLeerlingen: { create: gevraagd.map((leerlingId) => ({ leerlingId })) } }
           : {}),
