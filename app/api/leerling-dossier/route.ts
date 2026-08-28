@@ -40,16 +40,118 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Geen toegang tot deze leerling" }, { status: 403 });
   }
 
-  const [leerling, notities] = await Promise.all([
-    prisma.user.findUnique({ where: { id: leerlingId }, select: { id: true, name: true } }),
+  const [leerling, notities, klasLinks, aanwezigheid] = await Promise.all([
+    prisma.user.findUnique({ where: { id: leerlingId }, select: { id: true, name: true, email: true } }),
     prisma.leerlingDossier.findMany({
       where: { leerlingId },
       orderBy: { createdAt: "desc" },
       include: { auteur: { select: { id: true, name: true, role: true } } },
     }),
+    prisma.klasLeerling.findMany({
+      where: { leerlingId },
+      select: {
+        klas: {
+          select: {
+            id: true,
+            naam: true,
+            vakken: { select: { vak: { select: { id: true, naam: true } } } },
+            docenten: { select: { docent: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+    }),
+    // Volledige geschiedenis: het aantal lessen per leerling is klein genoeg
+    // (een schooljaar telt hooguit een paar honderd registraties) en het
+    // percentage moet over álles gaan, niet over een afgekapte lijst.
+    prisma.aanwezigheid.findMany({
+      where: { leerlingId },
+      select: {
+        id: true,
+        status: true,
+        les: {
+          select: {
+            id: true,
+            datum: true,
+            begintijd: true,
+            eindtijd: true,
+            lokaal: true,
+            klas: { select: { id: true, naam: true } },
+            vak: { select: { id: true, naam: true } },
+          },
+        },
+      },
+    }),
   ]);
 
-  return NextResponse.json({ leerling, notities });
+  const klassen = klasLinks.map((k) => ({
+    id: k.klas.id,
+    naam: k.klas.naam,
+    vakken: k.klas.vakken.map((v) => v.vak),
+    docenten: k.klas.docenten.map((d) => d.docent),
+  }));
+
+  // Vakken kunnen aan meerdere klassen hangen; één lijst zonder dubbelen.
+  const vakken = [...new Map(klassen.flatMap((k) => k.vakken).map((v) => [v.id, v])).values()];
+
+  const telling = { AANWEZIG: 0, AFWEZIG: 0, TE_LAAT: 0, GEOORLOOFD: 0 } as Record<string, number>;
+  for (const a of aanwezigheid) {
+    telling[a.status] = (telling[a.status] ?? 0) + 1;
+  }
+  const totaal = aanwezigheid.length;
+
+  // Per vak, zodat te zien is of het aan één vak ligt of overal speelt.
+  const perVakMap = new Map<string, { vakId: string | null; vakNaam: string; totaal: number; aanwezig: number }>();
+  for (const a of aanwezigheid) {
+    const sleutel = a.les.vak?.id ?? "(geen)";
+    if (!perVakMap.has(sleutel)) {
+      perVakMap.set(sleutel, {
+        vakId: a.les.vak?.id ?? null,
+        vakNaam: a.les.vak?.naam ?? "Zonder vak",
+        totaal: 0,
+        aanwezig: 0,
+      });
+    }
+    const r = perVakMap.get(sleutel)!;
+    r.totaal++;
+    if (a.status === "AANWEZIG") r.aanwezig++;
+  }
+
+  const geschiedenis = aanwezigheid
+    .map((a) => ({
+      id: a.id,
+      status: a.status,
+      lesId: a.les.id,
+      datum: a.les.datum,
+      begintijd: a.les.begintijd,
+      eindtijd: a.les.eindtijd,
+      lokaal: a.les.lokaal,
+      klasNaam: a.les.klas?.naam ?? null,
+      vakNaam: a.les.vak?.naam ?? null,
+    }))
+    .sort((x, y) => {
+      const d = new Date(y.datum).getTime() - new Date(x.datum).getTime();
+      return d !== 0 ? d : (y.begintijd ?? "").localeCompare(x.begintijd ?? "");
+    });
+
+  return NextResponse.json({
+    leerling,
+    notities,
+    klassen,
+    vakken,
+    aanwezigheid: {
+      totaal,
+      aanwezig: telling.AANWEZIG,
+      afwezig: telling.AFWEZIG,
+      teLaat: telling.TE_LAAT,
+      geoorloofd: telling.GEOORLOOFD,
+      // Zelfde maat als het leerlingdashboard: aanwezig gedeeld door alles.
+      percentage: totaal > 0 ? Math.round((telling.AANWEZIG / totaal) * 100) : null,
+      perVak: [...perVakMap.values()]
+        .map((r) => ({ ...r, percentage: r.totaal > 0 ? Math.round((r.aanwezig / r.totaal) * 100) : null }))
+        .sort((a, b) => a.vakNaam.localeCompare(b.vakNaam)),
+      geschiedenis,
+    },
+  });
 }
 
 // POST /api/leerling-dossier — notitie toevoegen
