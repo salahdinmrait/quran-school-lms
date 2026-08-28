@@ -19,7 +19,7 @@ export async function GET(
     include: {
       gebruikers: {
         orderBy: [{ role: "asc" }, { name: "asc" }],
-        select: { id: true, name: true, email: true, role: true, actief: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, actief: true, verwijderdOp: true, createdAt: true },
       },
       _count: { select: { klassen: true, vakken: true } },
     },

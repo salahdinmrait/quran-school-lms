@@ -9,6 +9,8 @@ interface Account {
   email: string;
   role: string;
   actief: boolean;
+  /** Gearchiveerd door de school (soft delete); null = gewoon in gebruik */
+  verwijderdOp: string | null;
   createdAt: string;
 }
 
@@ -66,6 +68,14 @@ export default function SchoolDetailPage() {
   const [createdCreds, setCreatedCreds] = useState<
     { name: string; email: string; role: string; password: string }[]
   >([]);
+
+  // Eén account bewerken: er staat er hooguit één paneel open, onder de rij
+  // zelf. Zo blijft zichtbaar om wie het gaat.
+  const [rijOpen, setRijOpen] = useState<{ id: string; modus: "wachtwoord" | "verwijderen" } | null>(null);
+  const [rijWachtwoord, setRijWachtwoord] = useState("");
+  const [rijBevestiging, setRijBevestiging] = useState("");
+  const [rijLoading, setRijLoading] = useState(false);
+  const [rijError, setRijError] = useState<string | null>(null);
 
   // Excel-import
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -170,6 +180,70 @@ export default function SchoolDetailPage() {
       loadMailStatus();
     } finally {
       setAccLoading(false);
+    }
+  }
+
+  // Nogmaals op dezelfde knop klikken sluit het paneel weer.
+  function openRij(rijId: string, modus: "wachtwoord" | "verwijderen") {
+    setRijError(null);
+    setRijWachtwoord("");
+    setRijBevestiging("");
+    setRijOpen((huidig) =>
+      huidig && huidig.id === rijId && huidig.modus === modus ? null : { id: rijId, modus }
+    );
+  }
+
+  async function handleWachtwoord(e: React.FormEvent, a: Account) {
+    e.preventDefault();
+    setRijError(null);
+    setRijLoading(true);
+    try {
+      const res = await fetch(`/api/dev/scholen/${id}/accounts/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rijWachtwoord ? { password: rijWachtwoord } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRijError(data.error ?? "Kon wachtwoord niet wijzigen");
+        return;
+      }
+      // Verschijnt in hetzelfde paneel als een net aangemaakt account: het is
+      // dezelfde handeling — een wachtwoord dat je één keer kunt overnemen.
+      setCreatedCreds((prev) => [...prev, data]);
+      setRijOpen(null);
+    } catch {
+      setRijError("Wijzigen mislukt — probeer het opnieuw");
+    } finally {
+      setRijLoading(false);
+    }
+  }
+
+  async function handleVerwijderAccount(e: React.FormEvent, a: Account) {
+    e.preventDefault();
+    setRijError(null);
+    setRijLoading(true);
+    try {
+      const res = await fetch(`/api/dev/scholen/${id}/accounts/${a.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bevestiging: rijBevestiging.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRijError(data.error ?? "Kon account niet verwijderen");
+        return;
+      }
+      // Een wachtwoord van een account dat niet meer bestaat hoort niet meer
+      // in beeld te staan.
+      setCreatedCreds((prev) => prev.filter((c) => c.email !== a.email));
+      setRijOpen(null);
+      load();
+      loadMailStatus();
+    } catch {
+      setRijError("Verwijderen mislukt — probeer het opnieuw");
+    } finally {
+      setRijLoading(false);
     }
   }
 
@@ -291,26 +365,140 @@ export default function SchoolDetailPage() {
                 ) : (
                   <ul className="divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-900">
                     {accounts.map((a) => (
-                      <li key={a.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                        <div className="min-w-0">
-                          <span className="font-medium">{a.name}</span>
-                          <span className="ml-2 text-slate-400">{a.email}</span>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          {wachtOpMail.has(a.id) && (
-                            <span
-                              className="rounded-full bg-amber-900 px-2 py-0.5 text-xs text-amber-300"
-                              title="Deze persoon heeft nog geen inloggegevens gemaild gekregen"
+                      <li key={a.id} className="px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-medium">{a.name}</span>
+                            <span className="ml-2 text-slate-400">{a.email}</span>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {wachtOpMail.has(a.id) && (
+                              <span
+                                className="rounded-full bg-amber-900 px-2 py-0.5 text-xs text-amber-300"
+                                title="Deze persoon heeft nog geen inloggegevens gemaild gekregen"
+                              >
+                                geen inloggegevens
+                              </span>
+                            )}
+                            {a.verwijderdOp && (
+                              <span
+                                className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-300"
+                                title="De school heeft dit account gearchiveerd. Het e-mailadres blijft bezet tot het hier definitief verwijderd wordt."
+                              >
+                                gearchiveerd
+                              </span>
+                            )}
+                            {!a.actief && (
+                              <span className="rounded-full bg-red-900 px-2 py-0.5 text-xs text-red-300">
+                                inactief
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openRij(a.id, "wachtwoord")}
+                              className="rounded-md border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
                             >
-                              geen inloggegevens
-                            </span>
-                          )}
-                          {!a.actief && (
-                            <span className="rounded-full bg-red-900 px-2 py-0.5 text-xs text-red-300">
-                              inactief
-                            </span>
-                          )}
+                              Wachtwoord
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openRij(a.id, "verwijderen")}
+                              className="rounded-md border border-red-800 px-2 py-0.5 text-xs text-red-400 hover:bg-red-950"
+                            >
+                              Verwijderen
+                            </button>
+                          </div>
                         </div>
+
+                        {rijOpen?.id === a.id && rijOpen.modus === "wachtwoord" && (
+                          <form
+                            onSubmit={(e) => handleWachtwoord(e, a)}
+                            className="mt-2 space-y-2 rounded-md border border-slate-700 bg-slate-950 p-3"
+                          >
+                            <p className="text-xs text-slate-400">
+                              Stelt direct een nieuw wachtwoord in voor{" "}
+                              <span className="font-mono text-slate-300">{a.email}</span>. Er gaat
+                              geen mail uit — je krijgt het wachtwoord hieronder te zien en geeft
+                              het zelf door. Laat het veld leeg om er een te laten genereren.
+                            </p>
+                            <input
+                              value={rijWachtwoord}
+                              onChange={(e) => setRijWachtwoord(e.target.value)}
+                              className={`${inputClass} max-w-xs`}
+                              placeholder="Leeg = genereren"
+                              autoComplete="off"
+                            />
+                            {rijError && <p className="text-xs text-red-400">{rijError}</p>}
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={rijLoading}
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                              >
+                                {rijLoading ? "Bezig..." : "Wachtwoord instellen"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRijOpen(null)}
+                                disabled={rijLoading}
+                                className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                              >
+                                Annuleren
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {rijOpen?.id === a.id && rijOpen.modus === "verwijderen" && (
+                          <form
+                            onSubmit={(e) => handleVerwijderAccount(e, a)}
+                            className="mt-2 space-y-2 rounded-md border border-red-800 bg-red-950/40 p-3"
+                          >
+                            <p className="text-xs text-slate-300">
+                              <strong>Onomkeerbaar.</strong> Dit wist{" "}
+                              <span className="font-medium">{a.name}</span> volledig uit de
+                              database, samen met zijn cijfers, aanwezigheid, huiswerk, berichten
+                              en dossiernotities. Alleen een nachtelijke backup van vóór dit
+                              moment kan het nog terughalen. Wil je alleen het inloggen blokkeren,
+                              gebruik dan de admin-omgeving van de school.
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Typ ter bevestiging{" "}
+                              <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-red-300">
+                                {a.email}
+                              </code>{" "}
+                              over:
+                            </p>
+                            <input
+                              value={rijBevestiging}
+                              onChange={(e) => setRijBevestiging(e.target.value)}
+                              className={`${inputClass} max-w-xs`}
+                              placeholder={a.email}
+                              autoComplete="off"
+                            />
+                            {rijError && <p className="text-xs text-red-400">{rijError}</p>}
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={
+                                  rijLoading ||
+                                  rijBevestiging.trim().toLowerCase() !== a.email.toLowerCase()
+                                }
+                                className="rounded-md bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-40"
+                              >
+                                {rijLoading ? "Bezig..." : "Ja, definitief verwijderen"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRijOpen(null)}
+                                disabled={rijLoading}
+                                className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                              >
+                                Annuleren
+                              </button>
+                            </div>
+                          </form>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -571,7 +759,7 @@ export default function SchoolDetailPage() {
           {createdCreds.length > 0 && (
             <div className="rounded-lg border border-amber-700 bg-amber-950 p-4">
               <p className="mb-2 text-sm font-medium text-amber-300">
-                Aangemaakte inloggegevens (alleen nu zichtbaar):
+                Wachtwoorden (alleen nu zichtbaar — na een refresh zijn ze weg):
               </p>
               <ul className="space-y-2">
                 {createdCreds.map((c, i) => (

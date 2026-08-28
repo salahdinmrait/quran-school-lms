@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { leesJson } from "@/lib/json-body";
+import { verwijderGebruikerDefinitief } from "@/lib/gebruiker-verwijderen";
 
 // Archief van soft-deleted items (personen, klassen, vakken) — alleen ADMIN.
 // GET    → lijst gearchiveerde items van de eigen school
@@ -57,26 +58,7 @@ export async function DELETE(req: NextRequest) {
       if (!target || target.schoolId !== schoolId || !target.verwijderdOp) {
         return NextResponse.json({ error: "Niet gevonden in het archief" }, { status: 404 });
       }
-      await prisma.$transaction(async (tx) => {
-        // Replies op berichten van deze gebruiker losmaken vóór het verwijderen
-        await tx.bericht.updateMany({
-          where: { replyTo: { OR: [{ verzenderId: id }, { ontvangerId: id }] } },
-          data: { replyToId: null },
-        });
-        await tx.bericht.deleteMany({ where: { OR: [{ verzenderId: id }, { ontvangerId: id }] } });
-        await tx.aanwezigheid.deleteMany({ where: { leerlingId: id } });
-        await tx.cijfer.deleteMany({ where: { leerlingId: id } });
-        await tx.inlevering.deleteMany({ where: { leerlingId: id } });
-        await tx.huiswerkLeerling.deleteMany({ where: { leerlingId: id } });
-        await tx.leerlingDossier.deleteMany({ where: { OR: [{ leerlingId: id }, { auteurId: id }] } });
-        await tx.studieMateriaal.deleteMany({ where: { docentId: id } });
-        await tx.hifdhProfiel.deleteMany({ where: { leerlingId: id } });
-        await tx.ouderLeerling.deleteMany({ where: { OR: [{ ouderId: id }, { leerlingId: id }] } });
-        await tx.passwordResetToken.deleteMany({ where: { gebruikerId: id } });
-        await tx.klasDocent.deleteMany({ where: { docentId: id } });
-        await tx.klasLeerling.deleteMany({ where: { leerlingId: id } });
-        await tx.user.delete({ where: { id } });
-      });
+      await verwijderGebruikerDefinitief(id);
     } else if (type === "klas") {
       const target = await prisma.klas.findUnique({ where: { id }, select: { schoolId: true, verwijderdOp: true } });
       if (!target || target.schoolId !== schoolId || !target.verwijderdOp) {
