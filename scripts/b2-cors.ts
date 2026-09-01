@@ -12,6 +12,11 @@ import { GetBucketCorsCommand, PutBucketCorsCommand, S3Client } from "@aws-sdk/c
  */
 
 const ORIGINS = [
+  // Het eigen domein: dit is wat gebruikers echt in de adresbalk hebben staan.
+  // De browser stuurt de origin waarop de pagina draait, niet die van de
+  // achterliggende Vercel-deployment — zonder deze regel weigert de preflight.
+  "https://www.jadwal.nl",
+  "https://jadwal.nl",
   "https://quran-school-app.vercel.app",
   // Vercel-previews krijgen elke keer een andere naam.
   "https://*.vercel.app",
