@@ -293,6 +293,7 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | Route | Methode | Doel |
 |---|---|---|
 | `api/cron/backup` | GET | Dagelijkse versleutelde backup (§11), alleen via `Authorization: Bearer CRON_SECRET` |
+| `api/cron/opslag` | GET | Dagelijkse opslagcontrole bij B2 (§12), zelfde autorisatie |
 
 ## 7. De developer-console (`/dev`)
 
@@ -473,20 +474,30 @@ Werking:
 2. Alles in één JSON-envelope (`{ versie, gemaaktOp, data }`), gzip
    (Node `zlib`), en **versleuteld met AES-256-GCM** — sleutel = SHA-256-hash
    van `BACKUP_SECRET`, formaat `[12-byte iv][16-byte auth-tag][ciphertext]`.
-   Versleuteling is nodig omdat Vercel Blob-URL's "publiek maar moeilijk te
-   raden" zijn, niet echt privé.
-3. Upload naar **Vercel Blob** (`@vercel/blob`) als
-   `backups/jadwal-backup-YYYY-MM-DD.json.gz.enc`.
-4. Opruimen: blobs ouder dan **30 dagen**, `LoginPoging`-rijen ouder dan 1 dag,
-   verlopen `PasswordResetToken`-rijen ouder dan 30 dagen.
+   De bucket is privé, maar de versleuteling blijft: twee sloten op dezelfde
+   deur, en zonder `BACKUP_SECRET` heeft een gelekt bestand geen waarde.
+3. Upload naar de **B2 back-upbucket** (`lib/b2-backup.ts`) als
+   `backups/jadwal-backup-YYYY-MM-DD.json.gz.enc`. Vaste naam per dag, dus twee
+   keer draaien op één dag overschrijft in plaats van te verdubbelen.
+4. Opruimen: back-ups ouder dan **30 dagen**, `LoginPoging`-rijen ouder dan
+   1 dag, verlopen `PasswordResetToken`-rijen ouder dan 30 dagen.
+
+De back-ups staan bewust in een **andere bucket** dan de bijlagen, met een
+eigen sleutel die alleen daarop gescoped is. `b2SleutelUitUrl()` laat alles
+binnen `bijlagen/` door; stonden de back-ups in dezelfde bucket, dan zou één
+versoepeling van dat patroon genoeg zijn om een gebruiker via zijn eigen
+bijlage-rij bij een back-up te laten komen.
 
 ⚠️ **`BACKUP_SECRET` kwijt = alle bestaande backups onbruikbaar** (encryptie
 kan niet ongedaan gemaakt worden zonder de sleutel). Bewaar een kopie op een
 tweede plek.
 
-**Terugzetten:** `scripts/herstel-backup.ts` —
-`npx tsx scripts/herstel-backup.ts <pad-of-url>` met `DATABASE_URL` en
-`BACKUP_SECRET` als env-vars. Ontsleutelt, ontgzipt, en zet elke tabel terug
+**Terugzetten:** `scripts/herstel-backup.ts` — eerst
+`npx tsx scripts/herstel-backup.ts --lijst` om te zien welke back-ups er zijn,
+dan `npx tsx scripts/herstel-backup.ts backups/jadwal-backup-YYYY-MM-DD.json.gz.enc`
+met `DATABASE_URL` en `BACKUP_SECRET` als env-vars (een lokaal pad of een URL
+mag ook). De bucket is privé, dus het script tekent zelf een kortlevende
+downloadlink. Ontsleutelt, ontgzipt, en zet elke tabel terug
 met `createMany({ skipDuplicates: true })` in FK-volgorde; `Bericht` (met
 zelfverwijzende `replyToId`) wordt eerst zonder replies ingezet en daarna per
 bericht bijgewerkt. Stap-voor-stap in
@@ -494,22 +505,42 @@ bericht bijgewerkt. Stap-voor-stap in
 
 ## 12. Bestandsbijlagen (uploads)
 
-- Bijlagen (foto's/pdf's, tot 4 MB) via de app: `api/bijlage-upload` → directe
-  server-side upload naar **Vercel Blob** voor elke rol (leerling, ouder,
-  docent, admin), publieke maar niet-raadbare URL in `bijlageUrl`. De 4 MB
-  gaat ongecodeerd als multipart mee, niet als base64 — daarom past het ruim
-  binnen de 4,5 MB-lichaamslimiet van Vercel.
-- Grotere bestanden (video's tot 500 MB) via de webapp: `api/upload` — de
+De opslag is **Backblaze B2** (S3-compatibel, `lib/b2.ts`), in een **privé**
+bucket. Er bestaat dus geen URL die zomaar werkt: alles loopt via kortlevende
+presigned links die onze eigen API pas uitdeelt nadat ze de autorisatie heeft
+gecontroleerd.
+
+- **Uploaden (tot 10 MB)** gaat in twee stappen. De app POST'et JSON
+  (`{naam, type, grootte}`) naar `api/bijlage-upload`; die keurt het en geeft
+  een presigned **PUT**-URL van 10 minuten terug plus de definitieve
+  `bijlageUrl`. Het bestand gaat daarna rechtstreeks van het toestel naar B2 —
+  langs onze API heen, dus Vercels lichaamslimiet van ~4,5 MB speelt geen rol.
+  B2 ondersteunt geen presigned *POST*, dus de maatgrens wordt afgedwongen door
+  `Content-Type` en `Content-Length` mee te ondertekenen: meer bytes sturen dan
+  opgegeven levert een handtekeningfout op.
+- Dezelfde route accepteert nog steeds **multipart** (tot 4 MB, via de server),
+  zodat een app-versie van vóór de overstap blijft werken. Beide repo's
+  deployen los.
+- **Downloaden** via `api/bijlage/[id]` / `api/attachment/[type]/[id]`. Die
+  routes controleren eerst of de ingelogde gebruiker erbij mag (zelfde
+  rol/school-scoping als de rest van de API) en tekenen dán pas een GET-link
+  van 5 minuten, met `Cache-Control: no-store` — een gecachte redirect zou na
+  het verlopen een fout opleveren.
+- Alleen sleutels onder `bijlagen/` worden geaccepteerd, plat en puur ASCII
+  (`b2SleutelUitUrl()`). Zonder die eis zou een gebruiker `bijlageUrl` op een
+  willekeurig ander object in de bucket kunnen zetten en het via zijn eigen
+  bijlage-rij ophalen.
+- `scripts/b2-cors.ts` zet de CORS-regels op de bucket; zonder die regels
+  weigert de browser de directe PUT. `scripts/b2-rooktest.ts` test de echte
+  bucket van begin tot eind.
+- Grotere bestanden (video's tot 500 MB) via de webapp: `api/upload` — nog de
   client-upload-token-flow van `@vercel/blob/client`, alleen voor docenten.
+  Staat als laatste onderdeel van de overstap nog op Vercel Blob.
 - `bijlageData` (base64 in de rij zelf) is een legacy-fallback voor bijlages
   van vóór deze overstap; nieuwe uploads gebruiken altijd `bijlageUrl`.
-- Bijlagen opvragen gaat via `api/bijlage/[id]` / `api/attachment/[type]/[id]`
-  — deze routes checken eerst of de ingelogde gebruiker toegang mag hebben
-  (zelfde rol/school-scoping als de rest van de API) voordat het bestand
-  wordt vrijgegeven; bij een `bijlageUrl` is dat een redirect, anders wordt
-  `bijlageData` als download geserveerd.
-- `api/cron/blob-opslag` (dagelijks, §14) bewaakt het totale Blob-gebruik en
-  mailt `BEHEERDER_EMAIL` bij 80% van de gratis 1 GB.
+- `scripts/migreer-naar-b2.ts` haalt bestaande Blob-bijlagen over naar B2.
+- `api/cron/opslag` (dagelijks, §14) telt beide buckets op en mailt
+  `BEHEERDER_EMAIL` zodra `B2_WAARSCHUW_GB` (standaard 400 GB) gepasseerd is.
 
 ## 13. Soft delete & archief
 
@@ -562,9 +593,11 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `MAIL_AFZENDER_ADRES` | Optioneel — postadres in de mailfooter; leeg = geen adres tonen (§8) |
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
-| `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig |
+| `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig. Alleen nog voor `api/upload` (studiemateriaal); vervalt als ook dat naar B2 gaat |
 | `B2_BUCKET` / `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APP_KEY` | Backblaze B2, de opslag voor bijlagen (`lib/b2.ts`). Bucket is privé: uploaden en downloaden gaan via kortlevende presigned URL's. Zonder deze vier geeft `/api/bijlage-upload` een 500 en blijven alleen bestaande Vercel Blob-bijlagen werken |
-| `BEHEERDER_EMAIL` | Ontvanger van de dagelijkse Blob-opslagwaarschuwing (`/api/cron/blob-opslag`) — leeg = de waarschuwing wordt niet gemaild, alleen gelogd |
+| `B2_BACKUP_BUCKET` / `B2_BACKUP_KEY_ID` / `B2_BACKUP_APP_KEY` | De back-upbucket bij B2 (`lib/b2-backup.ts`) — bewust een **andere** bucket dan die van de bijlagen, met een eigen sleutel. Endpoint is gedeeld met `B2_ENDPOINT`. Zonder deze drie geven `/api/cron/backup` en `/api/cron/opslag` een 500 |
+| `B2_WAARSCHUW_GB` | Optioneel — vanaf hoeveel GB totale opslag er een waarschuwing uitgaat (standaard 400) |
+| `BEHEERDER_EMAIL` | Ontvanger van de dagelijkse opslagwaarschuwing (`/api/cron/opslag`) — leeg = de waarschuwing wordt niet gemaild, alleen gelogd |
 
 Zonder SMTP-vars werkt alles nog steeds — mails worden dan alleen gelogd
 (§8). Zonder `CRON_SECRET`/`BACKUP_SECRET` slaat de backup-route direct af

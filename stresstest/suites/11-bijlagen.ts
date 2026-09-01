@@ -8,7 +8,9 @@ import type { Ctx } from "../context";
 
 export const naam = "Bijlagen: upload, URL-injectie en downloadscoping";
 
-const BLOB_AAN = !!process.env.BLOB_READ_WRITE_TOKEN;
+const BACKUP_AAN = !!(
+  process.env.B2_BACKUP_BUCKET && process.env.B2_BACKUP_KEY_ID && process.env.B2_BACKUP_APP_KEY
+);
 const B2_AAN = !!(
   process.env.B2_BUCKET && process.env.B2_ENDPOINT && process.env.B2_KEY_ID && process.env.B2_APP_KEY
 );
@@ -487,24 +489,24 @@ export async function draai(c: Ctx) {
   // ── 8. Opslagwaarschuwing (cron) ─────────────────────────────────────────
   groep("Cron opslagwaarschuwing");
   {
-    const zonder = await api("GET", "/api/cron/blob-opslag");
+    const zonder = await api("GET", "/api/cron/opslag");
     verwachtStatus("cron zonder autorisatie wordt geweigerd", zonder, 401, "KRITIEK");
 
-    const fout1 = await api("GET", "/api/cron/blob-opslag", { headers: { authorization: "Bearer fout" } });
+    const fout1 = await api("GET", "/api/cron/opslag", { headers: { authorization: "Bearer fout" } });
     verwachtStatus("cron met een verkeerd geheim wordt geweigerd", fout1, 401, "KRITIEK");
 
-    const fout2 = await api("GET", "/api/cron/blob-opslag", {
+    const fout2 = await api("GET", "/api/cron/opslag", {
       headers: { authorization: process.env.CRON_SECRET ?? "leeg" },
     });
     verwachtStatus("cron zonder Bearer-voorvoegsel wordt geweigerd", fout2, 401, "HOOG");
 
-    const metGebruiker = await api("GET", "/api/cron/blob-opslag", { token: c.adminA.token });
+    const metGebruiker = await api("GET", "/api/cron/opslag", { token: c.adminA.token });
     verwachtStatus("een gewone admin kan de cron niet aanroepen", metGebruiker, 401, "HOOG");
 
-    if (!BLOB_AAN) {
-      sla_over("BLOB_READ_WRITE_TOKEN ontbreekt lokaal; de geslaagde cronrun is niet te testen");
+    if (!BACKUP_AAN) {
+      sla_over("B2_BACKUP_* ontbreekt lokaal; de geslaagde cronrun is niet te testen");
     } else if (process.env.CRON_SECRET) {
-      const goed = await api("GET", "/api/cron/blob-opslag", {
+      const goed = await api("GET", "/api/cron/opslag", {
         headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
       });
       verwachtStatus("cron met het juiste geheim werkt", goed, 200, "HOOG");

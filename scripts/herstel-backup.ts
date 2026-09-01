@@ -3,16 +3,24 @@
 // Gebruik (PowerShell, in de map quran-school-lms):
 //   $env:DATABASE_URL="<Neon-string>"
 //   $env:BACKUP_SECRET="<zelfde secret als in Vercel>"
-//   npx tsx scripts/herstel-backup.ts <pad-naar-bestand-of-blob-url>
+//   npx tsx scripts/herstel-backup.ts --lijst          # welke backups zijn er?
+//   npx tsx scripts/herstel-backup.ts backups/jadwal-backup-2026-09-01.json.gz.enc
+//
+// De bron mag ook een lokaal bestand of een URL zijn. Een sleutel die met
+// "backups/" begint wordt bij Backblaze B2 opgehaald; die bucket is privé, dus
+// daarvoor moeten B2_ENDPOINT en de B2_BACKUP_*-variabelen ingesteld zijn
+// (staan in .env, die wordt hieronder ingelezen).
 //
 // Bedoeld voor herstel in een LEGE database (na een crash). Bestaande rijen
 // met hetzelfde id worden overgeslagen (skipDuplicates), dus nogmaals draaien
 // is veilig maar overschrijft niets.
 
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { gunzipSync } from "zlib";
 import { readFileSync } from "fs";
 import crypto from "crypto";
+import { BACKUP_PREFIX, backupDownloadUrl, backupLijst } from "../lib/b2-backup";
 
 const prisma = new PrismaClient();
 
@@ -28,19 +36,43 @@ function ontsleutel(bestand: Buffer, secret: string): Buffer {
 }
 
 async function laadBestand(bron: string): Promise<Buffer> {
-  if (bron.startsWith("http://") || bron.startsWith("https://")) {
-    const res = await fetch(bron);
+  // Een sleutel in de back-upbucket: die is privé, dus eerst een kortlevende
+  // link laten ondertekenen.
+  const url = bron.startsWith(BACKUP_PREFIX) ? await backupDownloadUrl(bron) : bron;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Download mislukt: ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
   }
-  return readFileSync(bron);
+  return readFileSync(url);
+}
+
+async function toonLijst() {
+  const backups = await backupLijst();
+  if (backups.length === 0) {
+    console.log("Geen backups gevonden.");
+    return;
+  }
+  console.log(`${backups.length} backup(s), nieuwste eerst:\n`);
+  for (const b of backups) {
+    console.log(
+      `  ${b.gemaaktOp.toISOString().slice(0, 16).replace("T", " ")}  ` +
+        `${String(Math.round(b.bytes / 1024)).padStart(7)} kB  ${b.sleutel}`
+    );
+  }
 }
 
 async function main() {
   const bron = process.argv[2];
   const secret = process.env.BACKUP_SECRET;
+  if (bron === "--lijst") {
+    await toonLijst();
+    await prisma.$disconnect();
+    return;
+  }
   if (!bron) {
-    console.error("Gebruik: npx tsx scripts/herstel-backup.ts <bestand-of-url>");
+    console.error("Gebruik: npx tsx scripts/herstel-backup.ts <bestand-of-url-of-b2-sleutel>");
+    console.error("         npx tsx scripts/herstel-backup.ts --lijst");
     process.exit(1);
   }
   if (!secret) {

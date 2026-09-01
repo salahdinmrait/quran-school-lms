@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put, list, del } from "@vercel/blob";
+import {
+  BACKUP_PREFIX,
+  backupIngesteld,
+  backupLijst,
+  backupSchrijf,
+  backupVerwijder,
+} from "@/lib/b2-backup";
 import { gzipSync } from "zlib";
 import crypto from "crypto";
 
-// Dagelijkse volledige backup van alle data naar Vercel Blob (zie vercel.json crons).
-// Blob-URLs zijn publiek-maar-onraadbaar; daarom wordt de backup versleuteld
-// met AES-256-GCM (sleutel afgeleid van BACKUP_SECRET) vóór het uploaden.
+// Dagelijkse volledige backup van alle data naar Backblaze B2 (zie vercel.json
+// crons), in een eigen bucket los van de bijlagen. Die bucket is privé, maar de
+// backup wordt daarnaast versleuteld met AES-256-GCM (sleutel afgeleid van
+// BACKUP_SECRET) vóór het uploaden — twee sloten op dezelfde deur.
 export const maxDuration = 300;
 
 const BEWAAR_DAGEN = 30;
@@ -28,6 +35,10 @@ export async function GET(req: NextRequest) {
   }
   if (!process.env.BACKUP_SECRET) {
     return NextResponse.json({ error: "BACKUP_SECRET is niet geconfigureerd" }, { status: 500 });
+  }
+  if (!backupIngesteld()) {
+    console.error("[backup] B2_BACKUP_BUCKET/B2_BACKUP_KEY_ID/B2_BACKUP_APP_KEY ontbreken");
+    return NextResponse.json({ error: "Back-upopslag is niet geconfigureerd" }, { status: 500 });
   }
 
   try {
@@ -78,18 +89,17 @@ export async function GET(req: NextRequest) {
     const bestand = versleutel(gzipSync(json), process.env.BACKUP_SECRET);
 
     const datum = new Date().toISOString().slice(0, 10);
-    const blob = await put(`backups/jadwal-backup-${datum}.json.gz.enc`, bestand, {
-      access: "public",
-      addRandomSuffix: true,
-      contentType: "application/octet-stream",
-    });
+    // Vaste naam per dag: twee keer op dezelfde dag draaien overschrijft, en
+    // levert dus geen dubbele backups op.
+    const sleutel = `${BACKUP_PREFIX}jadwal-backup-${datum}.json.gz.enc`;
+    await backupSchrijf(sleutel, bestand);
 
     // ── 3. Oude backups opruimen (> 30 dagen) ───────────────────────────────
     const grens = Date.now() - BEWAAR_DAGEN * 24 * 60 * 60 * 1000;
-    const { blobs } = await list({ prefix: "backups/" });
-    const verlopen = blobs.filter((b) => new Date(b.uploadedAt).getTime() < grens);
+    const alles = await backupLijst();
+    const verlopen = alles.filter((b) => b.gemaaktOp.getTime() < grens);
     if (verlopen.length > 0) {
-      await del(verlopen.map((b) => b.url));
+      await backupVerwijder(verlopen.map((b) => b.sleutel));
     }
 
     // ── 4. Transiente tabellen opschonen ────────────────────────────────────
@@ -105,14 +115,14 @@ export async function GET(req: NextRequest) {
     ]);
 
     console.log(
-      `[backup] ${blob.pathname} (${(bestand.length / 1024).toFixed(0)} kB), ` +
+      `[backup] ${sleutel} (${(bestand.length / 1024).toFixed(0)} kB), ` +
         `${verlopen.length} oude backups verwijderd, ` +
         `${oudePogingen.count} loginpogingen + ${oudeTokens.count} tokens opgeschoond`
     );
 
     return NextResponse.json({
       success: true,
-      bestand: blob.pathname,
+      bestand: sleutel,
       grootteKb: Math.round(bestand.length / 1024),
       oudeBackupsVerwijderd: verlopen.length,
     });

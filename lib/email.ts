@@ -291,26 +291,35 @@ ${knop(`${appUrl}/${pad}/berichten`, "Bericht lezen")}
   });
 }
 
-// Waarschuwing aan de beheerder (BEHEERDER_EMAIL) zodra de Vercel Blob-opslag
-// voor bijlages de ingestelde drempel nadert — zie app/api/cron/blob-opslag.
-export function opslagWaarschuwingEmail(gebruiktMb: number, limietMb: number): string {
-  const percentage = Math.round((gebruiktMb / limietMb) * 100);
+// Waarschuwing aan de beheerder (BEHEERDER_EMAIL) zodra de opslag bij Backblaze
+// B2 de ingestelde drempel passeert — zie app/api/cron/opslag.
+export function opslagWaarschuwingEmail(opts: {
+  bijlagenGb: number;
+  backupsGb: number;
+  drempelGb: number;
+}): string {
+  const totaal = opts.bijlagenGb + opts.backupsGb;
+  const percentage = Math.round((totaal / opts.drempelGb) * 100);
+  // B2 rekent ongeveer $6 per TB per maand.
+  const kostenPerMaand = ((totaal / 1024) * 6).toFixed(2);
   const inhoud = `
-        ${alinea(`De bijlage-opslag van Jadwal (Vercel Blob) zit op <strong style="font-weight:bold;">${percentage}%</strong> van de gratis grens.`)}
+        ${alinea(`De opslag van Jadwal bij Backblaze B2 staat op <strong style="font-weight:bold;">${totaal.toFixed(1)} GB</strong> — ${percentage}% van de ingestelde waarschuwingsgrens.`)}
 ${paneel("Opslag", [
-  `Gebruikt: <strong style="font-weight:bold;">${gebruiktMb} MB</strong> van ${limietMb} MB`,
+  `Bijlagen: <strong style="font-weight:bold;">${opts.bijlagenGb.toFixed(1)} GB</strong>`,
+  `Back-ups: <strong style="font-weight:bold;">${opts.backupsGb.toFixed(1)} GB</strong>`,
+  `Waarschuwingsgrens: ${opts.drempelGb} GB`,
 ])}
         ${alinea(
-          "Boven de gratis 1 GB gaat Vercel automatisch verder rekenen (ongeveer 2 cent per extra GB per maand) — er gaat niets stuk, maar dit is een goed moment om het gebruik te bekijken of een betaald plan te overwegen.",
+          `B2 is pay-as-you-go: er gaat niets stuk en er wordt niets geweigerd, de rekening loopt alleen op — bij dit gebruik ongeveer $${kostenPerMaand} per maand aan opslag. Een goed moment om te kijken of er oude bijlagen opgeruimd kunnen worden, of om de grens hoger te zetten (B2_WAARSCHUW_GB).`,
           "24px 0 40px 0"
         )}`;
 
   return mailLayout({
-    titel: "Opslag nadert de gratis grens",
-    preheader: `De bijlage-opslag zit op ${percentage}% van de gratis 1 GB.`,
-    kop: "Opslag nadert de gratis grens",
+    titel: "Opslag boven de waarschuwingsgrens",
+    preheader: `De opslag staat op ${totaal.toFixed(1)} GB (${percentage}% van de grens).`,
+    kop: "Opslag boven de waarschuwingsgrens",
     inhoud,
     ontvangerEmail: "",
-    voetnoot: "omdat de bijlage-opslag de ingestelde waarschuwingsgrens heeft bereikt.",
+    voetnoot: "omdat de opslag de ingestelde waarschuwingsgrens heeft bereikt.",
   });
 }

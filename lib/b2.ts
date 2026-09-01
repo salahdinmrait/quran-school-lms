@@ -1,5 +1,11 @@
 import { randomBytes } from "crypto";
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
@@ -52,11 +58,30 @@ export function b2Host(): string {
   return `${BUCKET}.${ENDPOINT}`;
 }
 
+/** De endpoint zonder schema, bijv. `s3.eu-central-003.backblazeb2.com`. */
+export function b2Endpoint(): string {
+  return ENDPOINT;
+}
+
 // s3.eu-central-003.backblazeb2.com → eu-central-003. De regio zit bij B2 in
 // de endpoint-naam; SigV4 wil hem los, en een verkeerde waarde geeft 403.
-function regio(): string {
+export function b2Regio(): string {
   const m = /^s3\.([a-z0-9-]+)\./.exec(ENDPOINT);
   return m ? m[1] : "us-east-1";
+}
+
+/** Een S3-client voor B2. De back-upbucket heeft eigen sleutels, zie lib/b2-backup.ts. */
+export function maakB2Client(opts: { keyId: string; appKey: string }): S3Client {
+  return new S3Client({
+    region: b2Regio(),
+    endpoint: `https://${ENDPOINT}`,
+    credentials: { accessKeyId: opts.keyId, secretAccessKey: opts.appKey },
+    // De SDK zet er anders standaard een CRC32 bij. Bij een presigned URL
+    // wordt die berekend over een leeg lichaam — de client stuurt de echte
+    // bytes pas later — en dat zou een controle bij B2 laten mislukken.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
 }
 
 let client: S3Client | null = null;
@@ -65,19 +90,37 @@ function b2(): S3Client {
   if (!b2Ingesteld()) {
     throw new Error("B2 is niet ingesteld (B2_BUCKET/B2_ENDPOINT/B2_KEY_ID/B2_APP_KEY)");
   }
-  if (!client) {
-    client = new S3Client({
-      region: regio(),
-      endpoint: `https://${ENDPOINT}`,
-      credentials: { accessKeyId: KEY_ID, secretAccessKey: APP_KEY },
-      // De SDK zet er anders standaard een CRC32 bij. Bij een presigned URL
-      // wordt die berekend over een leeg lichaam — de client stuurt de echte
-      // bytes pas later — en dat zou een controle bij B2 laten mislukken.
-      requestChecksumCalculation: "WHEN_REQUIRED",
-      responseChecksumValidation: "WHEN_REQUIRED",
-    });
-  }
+  if (!client) client = maakB2Client({ keyId: KEY_ID, appKey: APP_KEY });
   return client;
+}
+
+/**
+ * Alle objecten in een bucket optellen. B2 heeft geen kant-en-klare
+ * bucketgrootte, dus dit loopt de lijst door — 1000 per keer.
+ */
+export async function telBucket(
+  client: S3Client,
+  bucket: string
+): Promise<{ bytes: number; objecten: number }> {
+  let bytes = 0;
+  let objecten = 0;
+  let token: string | undefined;
+  do {
+    const pagina = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token })
+    );
+    for (const obj of pagina.Contents ?? []) {
+      bytes += obj.Size ?? 0;
+      objecten++;
+    }
+    token = pagina.IsTruncated ? pagina.NextContinuationToken : undefined;
+  } while (token);
+  return { bytes, objecten };
+}
+
+/** Hoeveel er in de bijlagenbucket staat. Gebruikt door de opslagcron. */
+export async function bijlagenOpslag(): Promise<{ bytes: number; objecten: number }> {
+  return telBucket(b2(), BUCKET);
 }
 
 /**
