@@ -563,6 +563,7 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
 | `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig |
+| `B2_BUCKET` / `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APP_KEY` | Backblaze B2, de opslag voor bijlagen (`lib/b2.ts`). Bucket is privé: uploaden en downloaden gaan via kortlevende presigned URL's. Zonder deze vier geeft `/api/bijlage-upload` een 500 en blijven alleen bestaande Vercel Blob-bijlagen werken |
 | `BEHEERDER_EMAIL` | Ontvanger van de dagelijkse Blob-opslagwaarschuwing (`/api/cron/blob-opslag`) — leeg = de waarschuwing wordt niet gemaild, alleen gelogd |
 
 Zonder SMTP-vars werkt alles nog steeds — mails worden dan alleen gelogd

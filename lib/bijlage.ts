@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
+import { b2SleutelUitUrl, maakDownloadUrl } from "@/lib/b2";
 import { verifyMobileToken, type MobileTokenPayload } from "@/lib/mobile-jwt";
 import { prisma } from "@/lib/prisma";
 
@@ -23,13 +24,17 @@ type Bijlage = {
 const SELECT = { bijlageNaam: true, bijlageUrl: true, bijlageData: true, bijlageType: true };
 
 /**
- * Alleen URL's uit onze eigen Blob-opslag zijn te vertrouwen.
+ * Alleen URL's uit onze eigen opslag zijn te vertrouwen.
  *
  * `bijlageUrl` komt rechtstreeks uit de body van de client en eindigt in
  * `bijlageAntwoord()` als een redirect. Zonder deze controle kan iedere
  * ingelogde gebruiker een bijlage plaatsen die het slachtoffer doorstuurt naar
  * een eigen server (phishing, en de ?token= uit de link lekt mee via Referer),
  * of een onzin-URL opslaan waar `NextResponse.redirect()` op stukloopt (500).
+ *
+ * Twee bronnen zijn geldig zolang de overstap loopt: Backblaze B2 (nieuw, en
+ * alleen binnen `bijlagen/` — zie `b2SleutelUitUrl()`) en Vercel Blob (oud).
+ * Zodra `scripts/migreer-naar-b2.ts` gedraaid heeft, kan de Blob-tak weg.
  */
 export function veiligeBijlageUrl(waarde: unknown): string | null {
   if (typeof waarde !== "string") return null;
@@ -45,9 +50,11 @@ export function veiligeBijlageUrl(waarde: unknown): string | null {
   if (u.protocol !== "https:") return null;
   // Gebruikersnaam/wachtwoord in de URL is een klassieke verhullingstruc.
   if (u.username || u.password) return null;
+
+  if (b2SleutelUitUrl(u)) return u.toString();
   // Vercel Blob serveert vanaf <store>.public.blob.vercel-storage.com
-  if (!/^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/i.test(u.hostname)) return null;
-  return u.toString();
+  if (/^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/i.test(u.hostname)) return u.toString();
+  return null;
 }
 
 /** Gewone http(s)-link (studiemateriaal). Geen javascript:/data:/file:. */
@@ -229,8 +236,14 @@ export async function bijlageGebruiker(req: NextRequest): Promise<Gebruiker | nu
   return null;
 }
 
-/** Blob-URL → redirect; anders de base64 uit de database als download. */
-export function bijlageAntwoord(item: Bijlage | null): NextResponse {
+/**
+ * Opgeslagen URL → redirect; anders de base64 uit de database als download.
+ *
+ * De B2-bucket is privé: daar wordt per verzoek een handtekening van vijf
+ * minuten voor gemaakt. Een gedeelde of gelekte link is dus snel waardeloos,
+ * in tegenstelling tot de oude Blob-links die eeuwig blijven werken.
+ */
+export async function bijlageAntwoord(item: Bijlage | null): Promise<NextResponse> {
   if (!item || !item.bijlageNaam) {
     return NextResponse.json({ error: "Geen bijlage gevonden" }, { status: 404 });
   }
@@ -239,7 +252,17 @@ export function bijlageAntwoord(item: Bijlage | null): NextResponse {
   // een kwaadaardige of kapotte URL wordt nooit een redirect.
   const veilig = veiligeBijlageUrl(item.bijlageUrl);
   if (veilig) {
-    return NextResponse.redirect(veilig);
+    const sleutel = b2SleutelUitUrl(new URL(veilig));
+    if (!sleutel) return NextResponse.redirect(veilig); // nog op Vercel Blob
+    try {
+      const link = await maakDownloadUrl(sleutel, { bestandsnaam: item.bijlageNaam });
+      // Geen tussenopslag: de link erachter verloopt, een gecachte redirect
+      // zou dus na vijf minuten een fout gaan opleveren.
+      return NextResponse.redirect(link, { status: 302, headers: { "Cache-Control": "no-store" } });
+    } catch (err) {
+      console.error("[bijlage] download-URL maken mislukt", err);
+      return NextResponse.json({ error: "Bijlage niet beschikbaar" }, { status: 500 });
+    }
   }
   if (item.bijlageUrl && !item.bijlageData) {
     return NextResponse.json({ error: "Geen bijlage gevonden" }, { status: 404 });

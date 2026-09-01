@@ -3,11 +3,16 @@ import {
   nooitServerfout, sla_over, kort, ok, GEMENE_STRINGS,
 } from "../lib";
 import { prisma } from "../fixture";
+import { verwijderVanB2 } from "../../lib/b2";
 import type { Ctx } from "../context";
 
-export const naam = "Bijlagen: Blob-upload, URL-injectie en downloadscoping";
+export const naam = "Bijlagen: upload, URL-injectie en downloadscoping";
 
 const BLOB_AAN = !!process.env.BLOB_READ_WRITE_TOKEN;
+const B2_AAN = !!(
+  process.env.B2_BUCKET && process.env.B2_ENDPOINT && process.env.B2_KEY_ID && process.env.B2_APP_KEY
+);
+const B2_HOST = `${process.env.B2_BUCKET}.${(process.env.B2_ENDPOINT ?? "").replace(/^https?:\/\//, "")}`;
 
 /** Ziet eruit als onze eigen opslag; wordt nooit echt opgehaald (redirect: manual). */
 const BLOB_URL = "https://abc123store.public.blob.vercel-storage.com/bijlagen/toets-a1b2.pdf";
@@ -119,10 +124,72 @@ export async function draai(c: Ctx) {
     }
   }
 
+  // ── 2b. Upload-endpoint: de presign-weg (JSON) ───────────────────────────
+  // De client uploadt zelf naar B2; deze route deelt alleen een kortlevende
+  // PUT-URL uit. Hier wordt gekeurd wat híj mag uitdelen.
+  groep("Bijlage-upload — presign (JSON)");
+  if (!B2_AAN) {
+    sla_over("B2_* ontbreekt; de presign-weg is niet te testen");
+  } else {
+    const ongeldig: { label: string; body: Record<string, unknown> }[] = [
+      { label: "naam ontbreekt", body: { type: "image/png", grootte: 10 } },
+      { label: "naam is geen tekst", body: { naam: 42, type: "image/png", grootte: 10 } },
+      { label: "type niet toegestaan", body: { naam: "x.html", type: "text/html", grootte: 10 } },
+      { label: "grootte ontbreekt", body: { naam: "x.png", type: "image/png" } },
+      { label: "grootte is tekst", body: { naam: "x.png", type: "image/png", grootte: "10" } },
+      { label: "grootte 0", body: { naam: "x.png", type: "image/png", grootte: 0 } },
+      { label: "grootte negatief", body: { naam: "x.png", type: "image/png", grootte: -5 } },
+      { label: "grootte gebroken getal", body: { naam: "x.png", type: "image/png", grootte: 1.5 } },
+    ];
+    for (const g of ongeldig) {
+      const a = await api("POST", "/api/bijlage-upload", { token: c.leerlingA1.token, body: g.body });
+      verwachtStatus(`presign: ${g.label} wordt geweigerd`, a, 400, "HOOG");
+    }
+
+    const teGroot = await api("POST", "/api/bijlage-upload", {
+      token: c.leerlingA1.token,
+      body: { naam: "groot.mp3", type: "audio/mpeg", grootte: 10 * 1024 * 1024 + 1 },
+    });
+    verwachtStatus("presign: boven 10 MB geeft 413", teGroot, 413, "HOOG");
+
+    const goed = await api("POST", "/api/bijlage-upload", {
+      token: c.leerlingA1.token,
+      body: { naam: "../../backups/geheim.mp3", type: "audio/mpeg", grootte: 1024 },
+    });
+    verwachtStatus("presign: een geldige aanvraag levert een upload-URL", goed, 200, "HOOG");
+    const uit = goed.body as { uploadUrl?: string; url?: string; headers?: Record<string, string> };
+    verwacht(
+      "presign: de upload-URL is ondertekend en wijst naar onze eigen bucket",
+      typeof uit?.uploadUrl === "string" &&
+        new URL(uit.uploadUrl).hostname === B2_HOST &&
+        new URL(uit.uploadUrl).searchParams.has("X-Amz-Signature"),
+      "KRITIEK",
+      `ondertekende URL op ${B2_HOST}`,
+      String(uit?.uploadUrl ?? "(geen)")
+    );
+    verwacht(
+      "presign: een pad-traversal in de naam komt niet buiten bijlagen/ terecht",
+      typeof uit?.url === "string" &&
+        new URL(uit.url).hostname === B2_HOST &&
+        /^\/bijlagen\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(new URL(uit.url).pathname),
+      "KRITIEK",
+      "platte sleutel onder /bijlagen/",
+      String(uit?.url ?? "(geen)")
+    );
+    verwacht(
+      "presign: de grootte staat vast in de mee te sturen headers",
+      uit?.headers?.["Content-Length"] === "1024" && uit?.headers?.["Content-Type"] === "audio/mpeg",
+      "HOOG",
+      "Content-Length 1024 en Content-Type audio/mpeg",
+      JSON.stringify(uit?.headers ?? null)
+    );
+    await prisma.loginPoging.deleteMany({ where: { sleutel: { startsWith: "bijlage-upload:" } } });
+  }
+
   // ── 3. Upload-endpoint: gemene bestandsnamen ─────────────────────────────
   groep("Bijlage-upload — bestandsnamen");
-  if (!BLOB_AAN) {
-    sla_over("BLOB_READ_WRITE_TOKEN ontbreekt lokaal; namen die de opslag raken zijn niet te testen");
+  if (!B2_AAN) {
+    sla_over("B2_* ontbreekt; namen die de opslag raken zijn niet te testen");
   } else {
     const namen = [
       "../../backups/jadwal-backup.json.gz.enc",
@@ -134,6 +201,9 @@ export async function draai(c: Ctx) {
       "..",
       "محمد صورة.png",
     ];
+    // Deze weg zet het bestand écht neer; wat we aanmaken ruimen we hieronder
+    // weer op, anders groeit de bucket bij elke stresstestrun.
+    const opruimen: string[] = [];
     for (const n of namen) {
       const a = await api("POST", "/api/bijlage-upload", {
         token: c.docentA1.token, formData: formulierMet(bestand(n, "image/png", 16)),
@@ -147,6 +217,14 @@ export async function draai(c: Ctx) {
         "pad onder /bijlagen/",
         String(url ?? "(geen url)")
       );
+      if (typeof url === "string") opruimen.push(new URL(url).pathname.slice(1));
+    }
+    for (const sleutel of opruimen) {
+      try {
+        await verwijderVanB2(sleutel);
+      } catch {
+        console.warn(`  ! opruimen van ${sleutel} mislukt — handmatig weghalen bij B2`);
+      }
     }
   }
 
