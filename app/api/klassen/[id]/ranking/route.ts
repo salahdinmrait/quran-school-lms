@@ -62,10 +62,11 @@ export async function GET(
     })
   ).map((h) => h.id);
 
-  // Count submissions per leerling using groupBy
+  // Tel per leerling het huiswerk dat de docent heeft afgetekend. Een eigen
+  // inlevering die nog niet is afgevinkt telt bewust niet mee.
   const counts = await prisma.inlevering.groupBy({
     by: ["leerlingId"],
-    where: { huiswerkId: { in: hwIds } },
+    where: { huiswerkId: { in: hwIds }, afgevinktOp: { not: null } },
     _count: { id: true },
   });
 

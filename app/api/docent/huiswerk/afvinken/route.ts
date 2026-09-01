@@ -28,10 +28,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Alleen `afgevinktOp` zetten. De inhoud en de bijlage zijn van de leerling:
+  // die hier overschrijven zou zijn ingeleverde werk wissen.
   const inlevering = await prisma.inlevering.upsert({
     where: { huiswerkId_leerlingId: { huiswerkId, leerlingId } },
-    create: { huiswerkId, leerlingId, inhoud: "✓" },
-    update: { inhoud: "✓" },
+    create: { huiswerkId, leerlingId, inhoud: "✓", afgevinktOp: new Date() },
+    update: { afgevinktOp: new Date() },
   });
 
   return NextResponse.json(inlevering, { status: 201 });
@@ -60,9 +62,21 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  await prisma.inlevering.deleteMany({
-    where: { huiswerkId, leerlingId },
+  // Heeft de leerling zelf ingeleverd, dan halen we alleen het vinkje weg;
+  // de rij verwijderen zou zijn antwoord en bijlage meenemen. Een rij zonder
+  // inlevering bestaat alleen dankzij het afvinken en mag wel weg.
+  const bestaand = await prisma.inlevering.findUnique({
+    where: { huiswerkId_leerlingId: { huiswerkId, leerlingId } },
+    select: { id: true, ingeleverdOp: true },
   });
+  if (bestaand?.ingeleverdOp) {
+    await prisma.inlevering.update({
+      where: { id: bestaand.id },
+      data: { afgevinktOp: null },
+    });
+  } else if (bestaand) {
+    await prisma.inlevering.delete({ where: { id: bestaand.id } });
+  }
 
   return NextResponse.json({ success: true });
 }

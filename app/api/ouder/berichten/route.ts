@@ -3,6 +3,7 @@ import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { toegestaneOntvangerIds } from "@/lib/contacten";
 import { leesJson } from "@/lib/json-body";
+import { mailNieuweBerichten } from "@/lib/bericht-notificatie";
 
 // GET /api/ouder/berichten
 export async function GET() {
@@ -82,6 +83,14 @@ export async function POST(req: NextRequest) {
         })
       )
     );
+    // Een ouder schrijft altijd losse personen aan, dus dit is persoonlijke
+    // post en levert een mail op (tenzij de ontvanger net actief was).
+    await mailNieuweBerichten({
+      ontvangerIds: doelIds,
+      verzenderNaam: session.user.name,
+      onderwerp,
+    });
+
     return NextResponse.json(berichten, { status: 201 });
   } catch (err) {
     console.error("[POST /api/ouder/berichten]", err);

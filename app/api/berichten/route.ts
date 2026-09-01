@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { toegestaneOntvangerIds } from "@/lib/contacten";
 import { leesJson } from "@/lib/json-body";
 import { leesBijlageVelden } from "@/lib/bijlage";
+import { mailNieuweBerichten } from "@/lib/bericht-notificatie";
+
+// Bovengrens op een samengesteld bericht: voorkomt dat één verzoek per ongeluk
+// een enorme transactie wordt.
+const MAX_DOELEN = 50;
 
 // GET /api/berichten — inbox + deduplicated verzonden
 export async function GET() {
@@ -99,6 +104,11 @@ export async function GET() {
  *   "KLAS_LEERLINGEN"  — doelId: string      (all leerlingen in klas)
  *   "KLAS_OUDERS"      — doelId: string      (all ouders of leerlingen in klas)
  *   "ADMINS"           — (geen doel)         (alle admins van de school)
+ *   "SAMENGESTELD"     — doelen: Doel[]      (groepen én personen door elkaar)
+ *
+ * Een Doel is { soort, id? } met soort:
+ *   "GEBRUIKER" (id = user), "KLAS_LEERLINGEN" / "KLAS_OUDERS" (id = klas),
+ *   "ALLE_DOCENTEN" of "ADMINS" (zonder id).
  *
  * Role rules:
  *   ADMIN/DOCENT: all doelTypes allowed
@@ -127,7 +137,7 @@ export async function POST(req: NextRequest) {
 
   const gelezen = await leesJson(req);
   if (!gelezen.ok) return gelezen.response;
-  const { onderwerp, inhoud, doelType, doelId, doelIds, replyToId } = gelezen.data;
+  const { onderwerp, inhoud, doelType, doelId, doelIds, doelen, replyToId } = gelezen.data;
 
   const bijlage = leesBijlageVelden(gelezen.data);
   if (!bijlage.ok) return bijlage.response;
@@ -171,6 +181,9 @@ export async function POST(req: NextRequest) {
 
   let ontvangerIds: string[] = [];
   let doelLabel: string = "";
+  // Ontvangers die persoonlijk zijn aangeschreven. Alleen die krijgen een
+  // notificatiemail; een klas-brede mededeling niet (zie lib/bericht-notificatie.ts).
+  let persoonlijkeOntvangerIds: string[] = [];
 
   if (doelType === "GEBRUIKERS") {
     const ids: string[] = Array.isArray(doelIds) ? doelIds : doelId ? [doelId] : [];
@@ -201,6 +214,7 @@ export async function POST(req: NextRequest) {
     }
 
     ontvangerIds = users.map((u) => u.id);
+    persoonlijkeOntvangerIds = ontvangerIds;
     doelLabel = users.length === 1 ? users[0].name : `${users.length} ontvangers`;
 
   } else if (doelType === "KLAS_LEERLINGEN") {
@@ -244,12 +258,118 @@ export async function POST(req: NextRequest) {
     ontvangerIds = admins.map((a) => a.id);
     doelLabel = "Beheer";
 
+  } else if (doelType === "SAMENGESTELD") {
+    // Groepen en losse personen door elkaar in één bericht. Elk doel wordt
+    // apart opgelost met dezelfde controles als de losse doelTypes hierboven.
+    if (isLeerling) {
+      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    }
+    if (!Array.isArray(doelen) || doelen.length === 0) {
+      return NextResponse.json({ error: "Geen ontvangers opgegeven" }, { status: 400 });
+    }
+    if (doelen.length > MAX_DOELEN) {
+      return NextResponse.json(
+        { error: `Maximaal ${MAX_DOELEN} doelen per bericht` },
+        { status: 400 }
+      );
+    }
+
+    const labels: string[] = [];
+    const persoonIds: string[] = [];
+    const verzameld = new Set<string>();
+
+    for (const ruw of doelen) {
+      if (!ruw || typeof ruw !== "object") {
+        return NextResponse.json({ error: "Ongeldig doel" }, { status: 400 });
+      }
+      const { soort, id } = ruw as { soort?: unknown; id?: unknown };
+
+      if (soort === "GEBRUIKER") {
+        if (typeof id !== "string" || !id) {
+          return NextResponse.json({ error: "Doel zonder id" }, { status: 400 });
+        }
+        persoonIds.push(id);
+
+      } else if (soort === "KLAS_LEERLINGEN" || soort === "KLAS_OUDERS") {
+        const klas = await klasVanDezeGebruiker(id);
+        if (!klas) {
+          return NextResponse.json({ error: "Klas niet gevonden" }, { status: 404 });
+        }
+        const leerlingIds = klas.leerlingen.map((kl) => kl.leerlingId);
+        if (soort === "KLAS_LEERLINGEN") {
+          for (const lid of leerlingIds) verzameld.add(lid);
+          labels.push(`Klas ${klas.naam} (leerlingen)`);
+        } else {
+          const ouders = await prisma.ouderLeerling.findMany({
+            where: { leerlingId: { in: leerlingIds } },
+            select: { ouderId: true },
+          });
+          for (const o of ouders) verzameld.add(o.ouderId);
+          labels.push(`Ouders van klas ${klas.naam}`);
+        }
+
+      } else if (soort === "ALLE_DOCENTEN") {
+        const docenten = await prisma.user.findMany({
+          where: {
+            role: "DOCENT",
+            actief: true,
+            verwijderdOp: null,
+            schoolId: session.user.schoolId ?? null,
+          },
+          select: { id: true },
+        });
+        for (const d of docenten) verzameld.add(d.id);
+        labels.push("Alle docenten");
+
+      } else if (soort === "ADMINS") {
+        const admins = await prisma.user.findMany({
+          where: {
+            role: "ADMIN",
+            actief: true,
+            verwijderdOp: null,
+            schoolId: session.user.schoolId ?? null,
+          },
+          select: { id: true },
+        });
+        for (const a of admins) verzameld.add(a.id);
+        labels.push("Beheer");
+
+      } else {
+        return NextResponse.json({ error: "Ongeldige doelsoort" }, { status: 400 });
+      }
+    }
+
+    // Losse personen in één query, en alleen binnen de eigen school.
+    if (persoonIds.length > 0) {
+      const users = await prisma.user.findMany({
+        where: {
+          id: { in: Array.from(new Set(persoonIds)) },
+          schoolId: session.user.schoolId ?? null,
+          verwijderdOp: null,
+        },
+        select: { id: true, name: true },
+      });
+      if (users.length === 0) {
+        return NextResponse.json({ error: "Geen geldige ontvangers gevonden" }, { status: 404 });
+      }
+      persoonlijkeOntvangerIds = users.map((u) => u.id);
+      for (const u of users) verzameld.add(u.id);
+      labels.push(users.length === 1 ? users[0].name : `${users.length} personen`);
+    }
+
+    ontvangerIds = Array.from(verzameld);
+    doelLabel = labels.join(" + ");
+
   } else {
     return NextResponse.json({ error: "Ongeldig doelType" }, { status: 400 });
   }
 
   // Dedup + stuur nooit naar jezelf (voorkomt o.a. "verstuurd naar 2" bij 1 keuze)
   ontvangerIds = Array.from(new Set(ontvangerIds)).filter((id) => id !== verzenderId);
+  const echteOntvangers = new Set(ontvangerIds);
+  persoonlijkeOntvangerIds = Array.from(new Set(persoonlijkeOntvangerIds)).filter((id) =>
+    echteOntvangers.has(id)
+  );
 
   if (ontvangerIds.length === 0) {
     return NextResponse.json(
@@ -299,6 +419,15 @@ export async function POST(req: NextRequest) {
         })
       )
     );
+    // Alleen persoonlijke post levert een mail op: een klas-brede mededeling
+    // aan tientallen mensen niet, een antwoord in een gesprek wel.
+    const teMailen = replyToId ? ontvangerIds : persoonlijkeOntvangerIds;
+    await mailNieuweBerichten({
+      ontvangerIds: teMailen,
+      verzenderNaam: session.user.name,
+      onderwerp,
+    });
+
     return NextResponse.json({ count: berichten.length }, { status: 201 });
   } catch (err) {
     console.error("[POST /api/berichten]", err);

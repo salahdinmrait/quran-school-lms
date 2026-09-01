@@ -36,7 +36,9 @@ export async function GET() {
           { doelLeerlingen: { none: {} } },
           { doelLeerlingen: { some: { leerlingId } } },
         ],
-        inleveringen: { none: { leerlingId } },
+        // Open = nog niet afgevinkt door de docent. Zelf ingeleverd werk dat
+        // nog wacht op de docent blijft dus in de lijst staan.
+        inleveringen: { none: { leerlingId, afgevinktOp: { not: null } } },
       },
       take: 5,
       orderBy: [{ les: { datum: "desc" } }, { id: "desc" }],

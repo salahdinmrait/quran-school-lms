@@ -40,7 +40,7 @@ export async function GET() {
             where: { leerlingId: k.leerlingId },
             select: {
               id: true, inhoud: true, createdAt: true, opmerking: true, opmerkingOp: true,
-              bijlageNaam: true,
+              bijlageNaam: true, ingeleverdOp: true, afgevinktOp: true,
             },
           },
         },
@@ -57,7 +57,10 @@ export async function GET() {
           lesDatum: hw.les?.datum.toISOString() ?? null,
           bijlageNaam: hw.bijlageNaam ?? null,
           hasBijlage: !!hw.bijlageNaam,
-          afgevinkt: hw.inleveringen.length > 0,
+          // Afgevinkt = door de docent afgetekend; ingeleverd = het kind heeft
+          // zelf iets ingestuurd dat nog op de docent wacht.
+          afgevinkt: !!hw.inleveringen[0]?.afgevinktOp,
+          ingeleverd: !!hw.inleveringen[0]?.ingeleverdOp,
           inlevering: hw.inleveringen[0]
             ? { ...hw.inleveringen[0], hasBijlage: !!hw.inleveringen[0].bijlageNaam }
             : null,

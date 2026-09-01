@@ -53,9 +53,10 @@ export async function GET() {
         })
       ).map((h) => h.id);
 
+      // Alleen afgevinkt huiswerk telt mee voor het klassement.
       const counts = await prisma.inlevering.groupBy({
         by: ["leerlingId"],
-        where: { huiswerkId: { in: hwIds } },
+        where: { huiswerkId: { in: hwIds }, afgevinktOp: { not: null } },
         _count: { id: true },
       });
 

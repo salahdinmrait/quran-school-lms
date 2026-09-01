@@ -67,10 +67,11 @@ export async function GET(req: NextRequest) {
       where: { leerlingId: { in: leerlingIds } },
       _avg: { waarde: true },
     }),
-    // Inleveringen count per leerling
+    // Afgevinkt huiswerk per leerling (een eigen inlevering die nog niet is
+    // afgetekend telt niet als 'gedaan')
     prisma.inlevering.groupBy({
       by: ["leerlingId"],
-      where: { leerlingId: { in: leerlingIds } },
+      where: { leerlingId: { in: leerlingIds }, afgevinktOp: { not: null } },
       _count: { id: true },
     }),
     // Al het huiswerk van de klassen waar deze leerlingen in zitten. Eén query

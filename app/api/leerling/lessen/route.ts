@@ -32,7 +32,10 @@ export async function GET() {
           vak: true,
           inleveringen: {
             where: { leerlingId },
-            select: { id: true, inhoud: true, createdAt: true },
+            select: {
+              id: true, inhoud: true, createdAt: true,
+              ingeleverdOp: true, afgevinktOp: true, bijlageNaam: true,
+            },
           },
         },
       },

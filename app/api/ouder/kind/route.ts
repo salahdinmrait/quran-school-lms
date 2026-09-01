@@ -25,8 +25,13 @@ export async function GET() {
                       huiswerk: {
                         include: {
                           vak: true,
-                          // include all inleveringen so the UI can filter by child's ID
-                          inleveringen: { select: { leerlingId: true } },
+                          // Alle inleveringen, zodat de UI op het kind kan
+                          // filteren. `afgevinktOp` erbij: een rij betekent
+                          // sinds het splitsen van inleveren en afvinken niet
+                          // meer vanzelf dat het huiswerk gedaan is.
+                          inleveringen: {
+                            select: { leerlingId: true, ingeleverdOp: true, afgevinktOp: true },
+                          },
                         },
                       },
                     },

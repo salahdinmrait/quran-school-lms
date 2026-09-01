@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { leerlingenMetOudersInclude, oudersVanKlas } from "@/lib/berichten-doelen";
 
 // GET /api/docent/klassen — klassen for the logged-in docent (with leerlingen + ouders)
 export async function GET() {
@@ -17,59 +18,20 @@ export async function GET() {
       klas: {
         include: {
           vakken: { where: { vak: { verwijderdOp: null } }, include: { vak: true } },
-          leerlingen: {
-            where: { leerling: { verwijderdOp: null } },
-            include: {
-              leerling: {
-                select: {
-                  id: true,
-                  name: true,
-                  // E-mail hoort erbij: de zoekbalk zoekt op naam én adres.
-                  email: true,
-                  // Ouder(s) of this leerling
-                  kindVan: {
-                    where: { ouder: { verwijderdOp: null } },
-                    select: {
-                      ouder: { select: { id: true, name: true, email: true } },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          leerlingen: leerlingenMetOudersInclude,
         },
       },
     },
   });
 
-  const klassen = klasDocenten.map(({ klas }) => {
-    // Ouders dedupliceren, maar ALLE kinderen per ouder verzamelen (niet alleen de eerste)
-    const ouderMap = new Map<string, { id: string; name: string; email: string; kinderen: string[] }>();
-    for (const { leerling } of klas.leerlingen) {
-      for (const { ouder } of leerling.kindVan) {
-        const bestaand = ouderMap.get(ouder.id);
-        if (bestaand) {
-          if (!bestaand.kinderen.includes(leerling.name)) bestaand.kinderen.push(leerling.name);
-        } else {
-          ouderMap.set(ouder.id, { id: ouder.id, name: ouder.name, email: ouder.email, kinderen: [leerling.name] });
-        }
-      }
-    }
-
-    return {
-      id: klas.id,
-      naam: klas.naam,
-      vakken: klas.vakken.map((kv) => ({ id: kv.vak.id, naam: kv.vak.naam, categorie: kv.vak.categorie })),
-      leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name, email: leerling.email })),
-      ouders: Array.from(ouderMap.values()).map((o) => ({
-        id: o.id,
-        name: o.name,
-        email: o.email,
-        kinderen: o.kinderen,
-        kindNaam: o.kinderen.join(", "), // backwards-compat: alle kinderen samengevoegd
-      })),
-    };
-  });
+  const klassen = klasDocenten.map(({ klas }) => ({
+    id: klas.id,
+    naam: klas.naam,
+    vakken: klas.vakken.map((kv) => ({ id: kv.vak.id, naam: kv.vak.naam, categorie: kv.vak.categorie })),
+    leerlingen: klas.leerlingen.map(({ leerling }) => ({ id: leerling.id, name: leerling.name, email: leerling.email })),
+    // Gededupliceerd, maar mét alle kinderen per ouder.
+    ouders: oudersVanKlas(klas.leerlingen),
+  }));
 
   return NextResponse.json(klassen);
 }

@@ -41,6 +41,9 @@ model User {
   actief    Boolean  @default(true)
   // Soft delete: gearchiveerd op dit tijdstip; null = actief zichtbaar
   verwijderdOp DateTime?
+  // Laatste keer dat deze gebruiker iets in de app deed; bepaalt of we een
+  // notificatiemail sturen bij een nieuw bericht (lib/bericht-notificatie.ts)
+  laatsteActiefOp DateTime?
   createdAt DateTime @default(now())
   school    School?  @relation(fields: [schoolId], references: [id])
   schoolId  String?
@@ -246,6 +249,10 @@ model Inlevering {
   bijlageUrl  String?
   bijlageData String?
   bijlageType String?
+  // Gezet zodra de leerling zelf inlevert
+  ingeleverdOp DateTime?
+  // Gezet zodra de docent aftekent; alleen dit telt mee voor het klassement
+  afgevinktOp  DateTime?
   createdAt   DateTime  @default(now())
   huiswerk    Huiswerk  @relation(fields: [huiswerkId], references: [id])
   huiswerkId  String

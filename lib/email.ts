@@ -259,13 +259,17 @@ ${knop(resetUrl, "Kies je eigen wachtwoord")}
   });
 }
 
+// De knop wijst naar het berichtenscherm van de rol van de ontvanger; elke rol
+// heeft zijn eigen pad in de app.
 export function berichtNotificatieEmail(
   ontvangerNaam: string,
   verzenderNaam: string,
   onderwerp: string,
   appUrl: string,
-  ontvangerEmail = ""
+  ontvangerEmail = "",
+  rol: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER" = "LEERLING"
 ): string {
+  const pad = { ADMIN: "admin", DOCENT: "docent", LEERLING: "leerling", OUDER: "ouder" }[rol];
   const inhoud = `
         ${alinea(`Hallo ${esc(ontvangerNaam)},`)}
         ${alinea(
@@ -274,7 +278,7 @@ export function berichtNotificatieEmail(
         )}
 ${paneel("Onderwerp", [esc(onderwerp)])}
         <div style="height:32px;line-height:32px;font-size:0;">&nbsp;</div>
-${knop(`${appUrl}/leerling/berichten`, "Bericht lezen")}
+${knop(`${appUrl}/${pad}/berichten`, "Bericht lezen")}
         ${kleineTekst("U ontvangt deze melding omdat er een nieuw bericht voor u klaarstaat in Jadwal.", "24px 0 40px 0")}`;
 
   return mailLayout({

@@ -17,14 +17,33 @@ export type ApiSession = {
   };
 } | null;
 
+// Hoe vaak we `laatsteActiefOp` hoogstens bijwerken. Elk verzoek zou een
+// schrijfactie per aanroep betekenen; eens per vijf minuten is nauwkeurig
+// genoeg voor de mailregel (een uur) en kost vrijwel niets.
+const ACTIEF_SCHRIJF_INTERVAL_MS = 5 * 60 * 1000;
+
 // Tokens zijn 30 dagen geldig; deze check zorgt dat een gearchiveerd of
 // gedeactiveerd account direct buitengesloten is, ondanks een geldig token.
+//
+// Meteen ook het moment om bij te houden wanneer iemand voor het laatst iets
+// in de app deed: daarop besluit lib/bericht-notificatie.ts of er een mail
+// uitgaat. Inlogtijd alleen zou niet werken — een mobiel token blijft dertig
+// dagen geldig, dus wie ingelogd blijft logt bijna nooit opnieuw in.
 async function isAccountActief(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { actief: true, verwijderdOp: true },
+    select: { actief: true, verwijderdOp: true, laatsteActiefOp: true },
   });
-  return !!user && user.actief && !user.verwijderdOp;
+  if (!user || !user.actief || user.verwijderdOp) return false;
+
+  const nu = Date.now();
+  if (!user.laatsteActiefOp || nu - user.laatsteActiefOp.getTime() > ACTIEF_SCHRIJF_INTERVAL_MS) {
+    // Faalt dit, dan gaat het verzoek gewoon door: dit is een bijzaak.
+    await prisma.user
+      .update({ where: { id: userId }, data: { laatsteActiefOp: new Date(nu) } })
+      .catch(() => {});
+  }
+  return true;
 }
 
 export async function auth(): Promise<ApiSession> {

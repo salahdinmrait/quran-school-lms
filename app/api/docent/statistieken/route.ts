@@ -43,7 +43,7 @@ export async function GET() {
         prisma.cijfer.aggregate({ where: { leerlingId: { in: leerlingIds }, vakId: { in: vakIds } }, _avg: { waarde: true } }),
         vakIds.length > 0 ? prisma.huiswerk.count({ where: { vakId: { in: vakIds } } }) : Promise.resolve(0),
         vakIds.length > 0
-          ? prisma.inlevering.count({ where: { leerlingId: { in: leerlingIds }, huiswerk: { vakId: { in: vakIds } } } })
+          ? prisma.inlevering.count({ where: { leerlingId: { in: leerlingIds }, huiswerk: { vakId: { in: vakIds } }, afgevinktOp: { not: null } } })
           : Promise.resolve(0),
       ]);
       const maxInleveringen = totalHw * leerlingIds.length;
@@ -63,7 +63,7 @@ export async function GET() {
       const [cijferAgg, totalHw, totalInleveringen] = await Promise.all([
         prisma.cijfer.aggregate({ where: { vakId: vak.id, leerlingId: { in: alleLeerlingIds } }, _avg: { waarde: true } }),
         prisma.huiswerk.count({ where: { vakId: vak.id } }),
-        prisma.inlevering.count({ where: { huiswerk: { vakId: vak.id }, leerlingId: { in: alleLeerlingIds } } }),
+        prisma.inlevering.count({ where: { huiswerk: { vakId: vak.id }, leerlingId: { in: alleLeerlingIds }, afgevinktOp: { not: null } } }),
       ]);
       const maxInleveringen = totalHw * alleLeerlingIds.length;
       return {

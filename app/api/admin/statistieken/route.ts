@@ -65,6 +65,8 @@ export async function GET() {
               where: {
                 leerlingId: { in: leerlingIds },
                 huiswerk: { vakId: { in: vakIds } },
+                // Alleen wat de docent heeft afgetekend telt als 'gedaan'.
+                afgevinktOp: { not: null },
               },
             })
           : Promise.resolve(0),
@@ -100,7 +102,7 @@ export async function GET() {
       const [cijferAgg, totalHw, totalInleveringen, aanwAanwezig, aanwTotaal] = await Promise.all([
         prisma.cijfer.aggregate({ where: { vakId: vak.id }, _avg: { waarde: true } }),
         prisma.huiswerk.count({ where: { vakId: vak.id } }),
-        prisma.inlevering.count({ where: { huiswerk: { vakId: vak.id } } }),
+        prisma.inlevering.count({ where: { huiswerk: { vakId: vak.id }, afgevinktOp: { not: null } } }),
         prisma.aanwezigheid.count({ where: { status: "AANWEZIG", les: { vakId: vak.id } } }),
         prisma.aanwezigheid.count({ where: { les: { vakId: vak.id } } }),
       ]);
@@ -152,7 +154,7 @@ export async function GET() {
         prisma.cijfer.aggregate({ where: { leerlingId: { in: leerlingIds }, vakId: { in: vakIds } }, _avg: { waarde: true } }),
         vakIds.length > 0 ? prisma.huiswerk.count({ where: { vakId: { in: vakIds } } }) : Promise.resolve(0),
         vakIds.length > 0
-          ? prisma.inlevering.count({ where: { leerlingId: { in: leerlingIds }, huiswerk: { vakId: { in: vakIds } } } })
+          ? prisma.inlevering.count({ where: { leerlingId: { in: leerlingIds }, huiswerk: { vakId: { in: vakIds } }, afgevinktOp: { not: null } } })
           : Promise.resolve(0),
       ]);
       const maxInleveringen = totalHw * leerlingIds.length;

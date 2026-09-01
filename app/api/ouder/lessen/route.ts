@@ -16,14 +16,39 @@ export async function GET() {
 
   const result = await Promise.all(
     koppelingen.map(async (k) => {
+      // Zelfde vorm als /api/leerling/lessen, zodat de ouder hetzelfde
+      // lesdetail te zien krijgt als het kind zelf.
       const lessenRaw = await prisma.les.findMany({
         where: {
           klas: { leerlingen: { some: { leerlingId: k.leerlingId } } },
         },
         orderBy: [{ datum: "asc" }, { begintijd: "asc" }],
         include: {
-          klas: { select: { naam: true, docenten: { include: { docent: { select: { id: true, name: true } } } } } },
-          vak: { select: { naam: true } },
+          klas: {
+            select: {
+              id: true,
+              naam: true,
+              docenten: { include: { docent: { select: { id: true, name: true } } } },
+            },
+          },
+          vak: { select: { id: true, naam: true } },
+          // Alleen huiswerk dat voor dít kind bedoeld is: leeg doellijstje =
+          // hele klas, anders moet het kind erin staan.
+          huiswerk: {
+            where: {
+              OR: [
+                { doelLeerlingen: { none: {} } },
+                { doelLeerlingen: { some: { leerlingId: k.leerlingId } } },
+              ],
+            },
+            include: {
+              vak: { select: { id: true, naam: true } },
+              inleveringen: {
+                where: { leerlingId: k.leerlingId },
+                select: { id: true, ingeleverdOp: true, afgevinktOp: true },
+              },
+            },
+          },
           aanwezigheid: {
             where: { leerlingId: k.leerlingId },
             select: { status: true },
@@ -31,10 +56,14 @@ export async function GET() {
         },
       });
 
-      const lessen = lessenRaw.map(({ bijlageData: _d, ...les }) => ({
+      const lessen = lessenRaw.map(({ bijlageData: _d, huiswerk, ...les }) => ({
         ...les,
         hasBijlage: !!les.bijlageNaam,
         docenten: les.klas.docenten.map((kd) => kd.docent),
+        huiswerk: huiswerk.map(({ bijlageData: _hd, deadline: _dl, ...hw }) => ({
+          ...hw,
+          hasBijlage: !!hw.bijlageNaam,
+        })),
       }));
 
       return { kind: k.leerling, lessen };

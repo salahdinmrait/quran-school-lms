@@ -11,6 +11,7 @@ out/
 prisma/dev.db
 prisma/dev.db-journal
 prisma/accounts.txt
+demo-accounts.txt
 
 # env files
 .env
