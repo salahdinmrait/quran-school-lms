@@ -268,7 +268,6 @@ vermeld: vereisen een geldige sessie/token (§4) en filteren op rol + school.
 | `api/berichten`, `/berichten/[id]` | Berichten versturen/lezen (alle rollen, rechten server-side) |
 | `api/studiemateriaal` | Materiaal delen/bekijken |
 | `api/leerling-dossier` | Dossiernotities lezen/schrijven (docent/admin) |
-| `api/upload` | Bestand uploaden naar Vercel Blob |
 | `api/bijlage/[id]`, `api/attachment/[type]/[id]` | Bijlage beveiligd opvragen |
 
 ### Admin-only
@@ -533,12 +532,10 @@ gecontroleerd.
 - `scripts/b2-cors.ts` zet de CORS-regels op de bucket; zonder die regels
   weigert de browser de directe PUT. `scripts/b2-rooktest.ts` test de echte
   bucket van begin tot eind.
-- Grotere bestanden (video's tot 500 MB) via de webapp: `api/upload` — nog de
-  client-upload-token-flow van `@vercel/blob/client`, alleen voor docenten.
-  Staat als laatste onderdeel van de overstap nog op Vercel Blob.
+- Ook de oude LMS-pagina voor docenthuiswerk uploadt via `api/bijlage-upload`
+  (max 10 MB). Vercel Blob is sinds september 2026 helemaal uitgefaseerd.
 - `bijlageData` (base64 in de rij zelf) is een legacy-fallback voor bijlages
   van vóór deze overstap; nieuwe uploads gebruiken altijd `bijlageUrl`.
-- `scripts/migreer-naar-b2.ts` haalt bestaande Blob-bijlagen over naar B2.
 - `api/cron/opslag` (dagelijks, §14) telt beide buckets op en mailt
   `BEHEERDER_EMAIL` zodra `B2_WAARSCHUW_GB` (standaard 400 GB) gepasseerd is.
 
@@ -593,8 +590,7 @@ Variables. Actuele waarden staan (bewust buiten git) in
 | `MAIL_AFZENDER_ADRES` | Optioneel — postadres in de mailfooter; leeg = geen adres tonen (§8) |
 | `CRON_SECRET` | Beveiligt `/api/cron/backup` (Vercel Cron stuurt dit automatisch mee) |
 | `BACKUP_SECRET` | AES-256-sleutel voor backup-versleuteling — **kwijt = backups onbruikbaar** |
-| `BLOB_STORE_ID` | Automatisch gezet door Vercel bij het koppelen van een Blob-store; samen met het door Vercel zelf beheerde `VERCEL_OIDC_TOKEN` (OIDC, geen zichtbare env var) genoeg om vanaf Vercel te schrijven/lezen — géén losse `BLOB_READ_WRITE_TOKEN` nodig. Alleen nog voor `api/upload` (studiemateriaal); vervalt als ook dat naar B2 gaat |
-| `B2_BUCKET` / `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APP_KEY` | Backblaze B2, de opslag voor bijlagen (`lib/b2.ts`). Bucket is privé: uploaden en downloaden gaan via kortlevende presigned URL's. Zonder deze vier geeft `/api/bijlage-upload` een 500 en blijven alleen bestaande Vercel Blob-bijlagen werken |
+| `B2_BUCKET` / `B2_ENDPOINT` / `B2_KEY_ID` / `B2_APP_KEY` | Backblaze B2, de opslag voor bijlagen (`lib/b2.ts`). Bucket is privé: uploaden en downloaden gaan via kortlevende presigned URL's. Zonder deze vier geeft `/api/bijlage-upload` een 500 |
 | `B2_BACKUP_BUCKET` / `B2_BACKUP_KEY_ID` / `B2_BACKUP_APP_KEY` | De back-upbucket bij B2 (`lib/b2-backup.ts`) — bewust een **andere** bucket dan die van de bijlagen, met een eigen sleutel. Endpoint is gedeeld met `B2_ENDPOINT`. Zonder deze drie geven `/api/cron/backup` en `/api/cron/opslag` een 500 |
 | `B2_WAARSCHUW_GB` | Optioneel — vanaf hoeveel GB totale opslag er een waarschuwing uitgaat (standaard 400) |
 | `BEHEERDER_EMAIL` | Ontvanger van de dagelijkse opslagwaarschuwing (`/api/cron/opslag`) — leeg = de waarschuwing wordt niet gemaild, alleen gelogd |

@@ -45,6 +45,9 @@ export default auth(async (req) => {
   return NextResponse.next();
 });
 
+// Bestanden uit /public (zoals jadwal-seal.png) moeten zonder inlog bereikbaar
+// zijn: het logo in elke e-mail laadt vanaf deze server. Zonder deze
+// uitzondering kreeg een mailprogramma een redirect naar /login terug.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|svg|webp|ico)$).*)"],
 };

@@ -32,9 +32,8 @@ const SELECT = { bijlageNaam: true, bijlageUrl: true, bijlageData: true, bijlage
  * een eigen server (phishing, en de ?token= uit de link lekt mee via Referer),
  * of een onzin-URL opslaan waar `NextResponse.redirect()` op stukloopt (500).
  *
- * Twee bronnen zijn geldig zolang de overstap loopt: Backblaze B2 (nieuw, en
- * alleen binnen `bijlagen/` — zie `b2SleutelUitUrl()`) en Vercel Blob (oud).
- * Zodra `scripts/migreer-naar-b2.ts` gedraaid heeft, kan de Blob-tak weg.
+ * Alleen Backblaze B2 is geldig, en alleen binnen `bijlagen/` — zie
+ * `b2SleutelUitUrl()`. Vercel Blob is sinds september 2026 uitgefaseerd.
  */
 export function veiligeBijlageUrl(waarde: unknown): string | null {
   if (typeof waarde !== "string") return null;
@@ -51,10 +50,7 @@ export function veiligeBijlageUrl(waarde: unknown): string | null {
   // Gebruikersnaam/wachtwoord in de URL is een klassieke verhullingstruc.
   if (u.username || u.password) return null;
 
-  if (b2SleutelUitUrl(u)) return u.toString();
-  // Vercel Blob serveert vanaf <store>.public.blob.vercel-storage.com
-  if (/^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/i.test(u.hostname)) return u.toString();
-  return null;
+  return b2SleutelUitUrl(u) ? u.toString() : null;
 }
 
 /** Gewone http(s)-link (studiemateriaal). Geen javascript:/data:/file:. */
@@ -80,8 +76,8 @@ export interface BijlageVelden {
 /**
  * Haalt de bijlagevelden uit een verzoekbody en keurt ze.
  *
- * `bijlageData` (base64) wordt niet meer geaccepteerd: bijlagen gaan sinds de
- * overstap naar Vercel Blob via /api/bijlage-upload. Een base64-veld zou de
+ * `bijlageData` (base64) wordt niet meer geaccepteerd: bijlagen gaan via
+ * /api/bijlage-upload naar Backblaze B2. Een base64-veld zou de
  * database van Neon (0,5 GB gratis) laten vollopen; bestaande rijen worden nog
  * wel uitgeleverd.
  */
@@ -241,7 +237,7 @@ export async function bijlageGebruiker(req: NextRequest): Promise<Gebruiker | nu
  *
  * De B2-bucket is privé: daar wordt per verzoek een handtekening van vijf
  * minuten voor gemaakt. Een gedeelde of gelekte link is dus snel waardeloos,
- * in tegenstelling tot de oude Blob-links die eeuwig blijven werken.
+ * anders dan een openbare link die eeuwig blijft werken.
  */
 export async function bijlageAntwoord(item: Bijlage | null): Promise<NextResponse> {
   if (!item || !item.bijlageNaam) {
@@ -252,8 +248,8 @@ export async function bijlageAntwoord(item: Bijlage | null): Promise<NextRespons
   // een kwaadaardige of kapotte URL wordt nooit een redirect.
   const veilig = veiligeBijlageUrl(item.bijlageUrl);
   if (veilig) {
-    const sleutel = b2SleutelUitUrl(new URL(veilig));
-    if (!sleutel) return NextResponse.redirect(veilig); // nog op Vercel Blob
+    // veiligeBijlageUrl() laat alleen B2-sleutels door, dus deze is er altijd.
+    const sleutel = b2SleutelUitUrl(new URL(veilig))!;
     try {
       const link = await maakDownloadUrl(sleutel, { bestandsnaam: item.bijlageNaam });
       // Geen tussenopslag: de link erachter verloopt, een gecachte redirect

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import {
   BookOpen, Plus, Trash2, Loader2, ChevronDown, ChevronUp,
@@ -14,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { VakBadge } from "@/components/vakken/VakBadge";
 import { formatDate } from "@/lib/utils";
+
+const MAX_BIJLAGE_BYTES = 10 * 1024 * 1024;
 
 type VakCategorie = "HIFZ" | "TAJWEED" | "ARABISCH" | "FIQH" | "SIRA" | "OVERIG";
 
@@ -76,7 +77,7 @@ export default function HuiswerkPage() {
   const [form, setForm] = useState({
     titel: "", beschrijving: "", vakId: "", lesId: "", selectedKlasId: "",
   });
-  // Bijlage: after Vercel Blob upload we store the public URL
+  // Bijlage: na de upload naar B2 bewaren we de object-URL
   const [bijlage, setBijlage] = useState<{ naam: string; url: string; type: string } | null>(null);
   const [bijlageLoading, setBijlageLoading] = useState(false);
   const [bijlageProgress, setBijlageProgress] = useState(0);
@@ -173,9 +174,9 @@ export default function HuiswerkPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Sanity cap: Vercel Blob supports up to 500 MB; warn for very large files
-    if (file.size > 500 * 1024 * 1024) {
-      toast.error("Bestand is te groot (max 500 MB).");
+    // Zelfde grens als /api/bijlage-upload; daarboven weigert de server toch.
+    if (file.size > MAX_BIJLAGE_BYTES) {
+      toast.error("Bestand is te groot (max 10 MB).");
       e.target.value = "";
       return;
     }
@@ -184,15 +185,34 @@ export default function HuiswerkPage() {
     setBijlageProgress(0);
 
     try {
-      const blob = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        onUploadProgress: ({ percentage }) => setBijlageProgress(percentage),
+      const type = file.type || "application/octet-stream";
+      // Stap 1: kortlevende upload-URL ophalen. Stap 2: het bestand gaat
+      // rechtstreeks naar B2, dus niet door Vercels ~4,5 MB-grens heen.
+      const res = await fetch("/api/bijlage-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ naam: file.name, type, grootte: file.size }),
       });
-      setBijlage({ naam: file.name, url: blob.url, type: file.type || "application/octet-stream" });
+      const opdracht = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(opdracht.error ?? `status ${res.status}`);
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", opdracht.uploadUrl);
+        // Content-Length zet de browser zelf; die mag je niet meegeven.
+        xhr.setRequestHeader("Content-Type", type);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setBijlageProgress(Math.round((ev.loaded / ev.total) * 100));
+        };
+        xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`PUT ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error("PUT geblokkeerd (CORS of netwerk)"));
+        xhr.send(file);
+      });
+      setBijlage({ naam: file.name, url: opdracht.url, type });
     } catch (err) {
-      console.error(err);
-      toast.error("Upload mislukt. Controleer of Vercel Blob is geconfigureerd.");
+      console.error("[bijlage] upload mislukt:", err);
+      toast.error(err instanceof Error && !err.message.startsWith("PUT") ? err.message : "Upload mislukt. Probeer het opnieuw.");
+      e.target.value = "";
     } finally {
       setBijlageLoading(false);
       setBijlageProgress(0);
@@ -422,7 +442,7 @@ export default function HuiswerkPage() {
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Paperclip className="inline h-3.5 w-3.5 mr-1" />
-                    Bijlage (optioneel · video, audio, foto, PDF · max 500 MB)
+                    Bijlage (optioneel · foto, video, audio, PDF, Word · max 10 MB)
                   </label>
                   {bijlage ? (
                     /* Uploaded — show file info */
@@ -462,7 +482,7 @@ export default function HuiswerkPage() {
                     <input
                       type="file"
                       onChange={handleFileChange}
-                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                      accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.mp4,.webm,.mov,.avi,.mkv,.mp3,.m4a,.wav,.ogg,.aac,.pdf,.doc,.docx,.txt"
                       className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-gray-300 rounded-md py-1.5 px-2"
                     />
                   )}

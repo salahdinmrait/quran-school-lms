@@ -30,5 +30,3 @@ next-env.d.ts
 dev.db
 dev.db-journal
 
-# Werkbestand van scripts/migreer-naar-b2.ts (oude Blob-URLs)
-migratie-blob-urls.txt

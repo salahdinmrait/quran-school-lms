@@ -16,8 +16,8 @@ const B2_AAN = !!(
 );
 const B2_HOST = `${process.env.B2_BUCKET}.${(process.env.B2_ENDPOINT ?? "").replace(/^https?:\/\//, "")}`;
 
-/** Ziet eruit als onze eigen opslag; wordt nooit echt opgehaald (redirect: manual). */
-const BLOB_URL = "https://abc123store.public.blob.vercel-storage.com/bijlagen/toets-a1b2.pdf";
+/** Een geldige sleutel in onze eigen bucket; wordt nooit echt opgehaald (redirect: manual). */
+const B2_URL = `https://${B2_HOST}/bijlagen/aa0000000000000000000000-toets.pdf`;
 
 const KWAADAARDIGE_URLS: { label: string; waarde: unknown }[] = [
   { label: "externe host", waarde: "https://kwaadaardig.example/phishing.html" },
@@ -28,15 +28,18 @@ const KWAADAARDIGE_URLS: { label: string; waarde: unknown }[] = [
   { label: "metadata-dienst (SSRF)", waarde: "http://169.254.169.254/latest/meta-data/" },
   { label: "localhost", waarde: "http://localhost:3000/api/dev/scholen" },
   { label: "geen geldige URL", waarde: "zomaar-wat-tekst" },
-  { label: "hostnaam-achtervoegsel", waarde: "https://public.blob.vercel-storage.com.kwaadaardig.example/x" },
-  { label: "pad-truc", waarde: "https://kwaadaardig.example/public.blob.vercel-storage.com/x" },
-  { label: "inloggegevens in URL", waarde: "https://a.public.blob.vercel-storage.com@kwaadaardig.example/x" },
+  { label: "hostnaam-achtervoegsel", waarde: `https://${B2_HOST}.kwaadaardig.example/bijlagen/x.pdf` },
+  { label: "pad-truc", waarde: `https://kwaadaardig.example/${B2_HOST}/bijlagen/x.pdf` },
+  { label: "inloggegevens in URL", waarde: `https://${B2_HOST}@kwaadaardig.example/bijlagen/x.pdf` },
   { label: "protocolloos", waarde: "//kwaadaardig.example/x" },
   { label: "getal", waarde: 12345 },
   { label: "object", waarde: { url: "https://kwaadaardig.example" } },
   { label: "array", waarde: ["https://kwaadaardig.example"] },
   { label: "boolean", waarde: true },
-  { label: "zeer lang", waarde: "https://a.public.blob.vercel-storage.com/" + "a".repeat(5000) },
+  { label: "zeer lang", waarde: `https://${B2_HOST}/bijlagen/` + "a".repeat(5000) },
+  // Vercel Blob is uitgefaseerd: zo'n link hoort nu net zo vreemd te zijn als elke andere host.
+  { label: "oude Vercel Blob-URL", waarde: "https://abc123store.public.blob.vercel-storage.com/bijlagen/toets-a1b2.pdf" },
+  { label: "eigen bucket buiten bijlagen/", waarde: `https://${B2_HOST}/backups/jadwal-backup.json.gz.enc` },
 ];
 
 /** Korte selectie voor de routes die dezelfde helper gebruiken. */
@@ -78,7 +81,7 @@ export async function draai(c: Ctx) {
     verwachtStatus("upload met een geknoeide handtekening wordt geweigerd", geknoeid, 401, "KRITIEK");
   }
 
-  // ── 2. Upload-endpoint: invoerkeuring (loopt niet tot de Blob-opslag) ─────
+  // ── 2. Upload-endpoint: invoerkeuring (loopt niet tot de opslag) ─────
   groep("Bijlage-upload — invoerkeuring");
   {
     const leeg = await api("POST", "/api/bijlage-upload", {
@@ -333,17 +336,19 @@ export async function draai(c: Ctx) {
     verwachtValidatiefout("huiswerk met base64-bijlage wordt geweigerd", b, "HOOG");
   }
 
-  groep("Een geldige Blob-URL wordt wel aangenomen");
-  {
+  groep("Een geldige B2-URL wordt wel aangenomen");
+  if (!B2_AAN) {
+    sla_over("B2_* ontbreekt; een geldige B2-URL is niet te testen");
+  } else {
     const a = await api("POST", "/api/berichten", {
       token: c.leerlingA1.token,
       body: {
         onderwerp: "Stress geldige bijlage", inhoud: "test",
         doelType: "GEBRUIKERS", doelIds: [f.docentA1.id],
-        bijlageNaam: "toets.pdf", bijlageType: "application/pdf", bijlageUrl: BLOB_URL,
+        bijlageNaam: "toets.pdf", bijlageType: "application/pdf", bijlageUrl: B2_URL,
       },
     });
-    verwachtStatus("bericht met een echte Blob-URL wordt aangenomen", a, [200, 201], "HOOG");
+    verwachtStatus("bericht met een echte B2-URL wordt aangenomen", a, [200, 201], "HOOG");
 
     const rij = await prisma.bericht.findFirst({
       where: { onderwerp: "Stress geldige bijlage" },
@@ -351,10 +356,10 @@ export async function draai(c: Ctx) {
       select: { id: true, bijlageUrl: true },
     });
     verwacht(
-      "de Blob-URL wordt onveranderd opgeslagen",
-      rij?.bijlageUrl === BLOB_URL,
+      "de B2-URL wordt onveranderd opgeslagen",
+      rij?.bijlageUrl === B2_URL,
       "HOOG",
-      BLOB_URL,
+      B2_URL,
       String(rij?.bijlageUrl)
     );
 
@@ -363,17 +368,20 @@ export async function draai(c: Ctx) {
         token: c.docentA1.token, redirect: "manual",
       });
       verwacht(
-        "de bijlage wordt doorgestuurd naar de Blob-URL",
+        "de bijlage wordt doorgestuurd naar een ondertekende B2-link",
         d.status === 302 || d.status === 307,
         "HOOG",
-        "302/307 naar de Blob-URL",
+        "302/307 naar B2",
         kort(d)
       );
       verwacht(
-        "de doorstuurbestemming is de opgeslagen Blob-URL",
-        (d.headers.get("location") ?? "").startsWith("https://abc123store.public.blob.vercel-storage.com/"),
+        "de doorstuurbestemming is het opgeslagen object, met handtekening",
+        (() => {
+          const loc = d.headers.get("location") ?? "";
+          return loc.startsWith(B2_URL) && loc.includes("X-Amz-Signature=");
+        })(),
         "HOOG",
-        BLOB_URL,
+        `${B2_URL}?X-Amz-…`,
         d.headers.get("location") ?? "(geen location)"
       );
     }
@@ -417,16 +425,18 @@ export async function draai(c: Ctx) {
     await prisma.bericht.update({ where: { id: f.berichtAanA1 }, data: origineel ?? {} });
   }
 
-  // ── 7. Scoping blijft gelden voor een bijlage met Blob-URL ───────────────
-  groep("Downloadscoping met een Blob-URL");
-  {
+  // ── 7. Scoping blijft gelden voor een bijlage met B2-URL ─────────────────
+  groep("Downloadscoping met een B2-URL");
+  if (!B2_AAN) {
+    sla_over("B2_* ontbreekt; downloadscoping met B2 is niet te testen");
+  } else {
     const origineel = await prisma.les.findUnique({
       where: { id: f.lesA1Toekomst },
       select: { bijlageNaam: true, bijlageUrl: true, bijlageData: true, bijlageType: true },
     });
     await prisma.les.update({
       where: { id: f.lesA1Toekomst },
-      data: { bijlageNaam: "les.pdf", bijlageUrl: BLOB_URL, bijlageData: null, bijlageType: "application/pdf" },
+      data: { bijlageNaam: "les.pdf", bijlageUrl: B2_URL, bijlageData: null, bijlageType: "application/pdf" },
     });
 
     const mag: { label: string; token: string }[] = [
@@ -443,7 +453,7 @@ export async function draai(c: Ctx) {
         `${m.label} krijgt de bijlage`,
         a.status === 302 || a.status === 307,
         "MIDDEL",
-        "302/307 naar de Blob-URL",
+        "302/307 naar B2",
         kort(a)
       );
     }
@@ -462,9 +472,9 @@ export async function draai(c: Ctx) {
       verwachtGeweigerd(`${m.label} krijgt de bijlage niet`, a, "KRITIEK");
       verwacht(
         `${m.label} krijgt ook geen doorstuurlink`,
-        !(a.headers.get("location") ?? "").includes("blob.vercel-storage.com"),
+        !(a.headers.get("location") ?? "").includes(B2_HOST),
         "KRITIEK",
-        "geen location-header met de Blob-URL",
+        "geen location-header naar B2",
         a.headers.get("location") ?? "(geen)"
       );
     }
