@@ -442,7 +442,7 @@ export default function HuiswerkPage() {
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <Paperclip className="inline h-3.5 w-3.5 mr-1" />
-                    Bijlage (optioneel · foto, video, audio, PDF, Word · max 10 MB)
+                    Bijlage (optioneel · foto, video, audio, PDF, Office · max 10 MB)
                   </label>
                   {bijlage ? (
                     /* Uploaded — show file info */
@@ -482,7 +482,7 @@ export default function HuiswerkPage() {
                     <input
                       type="file"
                       onChange={handleFileChange}
-                      accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.mp4,.webm,.mov,.avi,.mkv,.mp3,.m4a,.wav,.ogg,.aac,.pdf,.doc,.docx,.txt"
+                      accept=".jpg,.jpeg,.png,.gif,.webp,.heic,.mp4,.webm,.mov,.avi,.mkv,.mp3,.m4a,.wav,.ogg,.aac,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
                       className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer border border-gray-300 rounded-md py-1.5 px-2"
                     />
                   )}
