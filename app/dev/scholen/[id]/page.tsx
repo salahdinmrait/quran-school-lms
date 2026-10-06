@@ -35,6 +35,8 @@ interface MailStatus {
   wachtenden: { id: string; name: string; email: string; role: string }[];
 }
 
+type RijModus = "mail" | "wachtwoord" | "verwijderen";
+
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Admins",
   DOCENT: "Docenten",
@@ -71,11 +73,13 @@ export default function SchoolDetailPage() {
 
   // Eén account bewerken: er staat er hooguit één paneel open, onder de rij
   // zelf. Zo blijft zichtbaar om wie het gaat.
-  const [rijOpen, setRijOpen] = useState<{ id: string; modus: "wachtwoord" | "verwijderen" } | null>(null);
+  const [rijOpen, setRijOpen] = useState<{ id: string; modus: RijModus } | null>(null);
   const [rijWachtwoord, setRijWachtwoord] = useState("");
   const [rijBevestiging, setRijBevestiging] = useState("");
   const [rijLoading, setRijLoading] = useState(false);
   const [rijError, setRijError] = useState<string | null>(null);
+  // Bevestiging onder een rij nadat een mail is verstuurd
+  const [rijMelding, setRijMelding] = useState<{ id: string; tekst: string } | null>(null);
 
   // Excel-import
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -184,8 +188,9 @@ export default function SchoolDetailPage() {
   }
 
   // Nogmaals op dezelfde knop klikken sluit het paneel weer.
-  function openRij(rijId: string, modus: "wachtwoord" | "verwijderen") {
+  function openRij(rijId: string, modus: RijModus) {
     setRijError(null);
+    setRijMelding(null);
     setRijWachtwoord("");
     setRijBevestiging("");
     setRijOpen((huidig) =>
@@ -214,6 +219,28 @@ export default function SchoolDetailPage() {
       setRijOpen(null);
     } catch {
       setRijError("Wijzigen mislukt — probeer het opnieuw");
+    } finally {
+      setRijLoading(false);
+    }
+  }
+
+  async function handleStuurInloggegevens(a: Account) {
+    setRijError(null);
+    setRijLoading(true);
+    try {
+      const res = await fetch(`/api/dev/scholen/${id}/accounts/${a.id}/inloggegevens`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRijError(data.error ?? "Kon inloggegevens niet versturen");
+        return;
+      }
+      setRijOpen(null);
+      setRijMelding({ id: a.id, tekst: `Inloggegevens verstuurd naar ${a.email}` });
+      loadMailStatus();
+    } catch {
+      setRijError("Versturen mislukt — probeer het opnieuw");
     } finally {
       setRijLoading(false);
     }
@@ -393,6 +420,15 @@ export default function SchoolDetailPage() {
                                 inactief
                               </span>
                             )}
+                            {a.actief && !a.verwijderdOp && (
+                              <button
+                                type="button"
+                                onClick={() => openRij(a.id, "mail")}
+                                className="rounded-md border border-emerald-800 px-2 py-0.5 text-xs text-emerald-400 hover:bg-emerald-950"
+                              >
+                                Inloggegevens
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => openRij(a.id, "wachtwoord")}
@@ -409,6 +445,46 @@ export default function SchoolDetailPage() {
                             </button>
                           </div>
                         </div>
+
+                        {rijMelding?.id === a.id && (
+                          <p className="mt-1 text-xs text-emerald-400">{rijMelding.tekst}</p>
+                        )}
+
+                        {rijOpen?.id === a.id && rijOpen.modus === "mail" && (
+                          <div className="mt-2 space-y-2 rounded-md border border-slate-700 bg-slate-950 p-3">
+                            <p className="text-xs text-slate-400">
+                              Stuurt <span className="font-mono text-slate-300">{a.email}</span> de
+                              welkomstmail met een nieuw tijdelijk wachtwoord en een link (7 dagen
+                              geldig) om zelf een wachtwoord te kiezen.
+                            </p>
+                            {!wachtOpMail.has(a.id) && (
+                              <p className="rounded border border-amber-800 bg-amber-950/40 px-2 py-1.5 text-xs text-amber-300">
+                                Deze persoon heeft al eerder inloggegevens gehad. Na versturen werkt
+                                het huidige wachtwoord niet meer — ook niet als die het zelf heeft
+                                gekozen — en vervallen eerdere links.
+                              </p>
+                            )}
+                            {rijError && <p className="text-xs text-red-400">{rijError}</p>}
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleStuurInloggegevens(a)}
+                                disabled={rijLoading}
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                              >
+                                {rijLoading ? "Versturen..." : "Inloggegevens versturen"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRijOpen(null)}
+                                disabled={rijLoading}
+                                className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                              >
+                                Annuleren
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {rijOpen?.id === a.id && rijOpen.modus === "wachtwoord" && (
                           <form

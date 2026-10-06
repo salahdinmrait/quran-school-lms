@@ -315,6 +315,7 @@ export async function draai(c: Ctx) {
     ["POST", `/api/dev/scholen/${f.schoolA.id}/accounts`],
     ["GET", `/api/dev/scholen/${f.schoolA.id}/inloggegevens`],
     ["POST", `/api/dev/scholen/${f.schoolA.id}/inloggegevens`],
+    ["POST", `/api/dev/scholen/${f.schoolA.id}/accounts/${f.leerlingA1.id}/inloggegevens`],
     ["POST", `/api/dev/scholen/${f.schoolA.id}/import`],
     ["DELETE", `/api/dev/scholen/${f.schoolA.id}`],
   ] as const) {

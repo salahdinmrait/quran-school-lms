@@ -66,10 +66,64 @@ export interface VerstuurResultaat {
 }
 
 /**
+ * Stuurt één account zijn inloggegevens: een vers tijdelijk wachtwoord en een
+ * nieuwe link van 7 dagen om zelf een wachtwoord te kiezen. Gooit als de mail
+ * niet weg is — en laat het account dan ongemoeid: het wachtwoord wordt pas
+ * gewijzigd, eerdere links pas ingetrokken en `verstuurdOp` pas gezet nadat de
+ * mail is verstuurd.
+ */
+export async function verstuurNaarAccount(
+  user: { id: string; name: string; email: string },
+  schoolNaam: string
+): Promise<void> {
+  const wachtwoord = generatePassword();
+  const wachtwoordHash = await hash(wachtwoord, 12);
+  const token = crypto.randomBytes(32).toString("hex");
+
+  const rij = await prisma.passwordResetToken.create({
+    data: {
+      token,
+      gebruikerId: user.id,
+      verlooptOp: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  try {
+    await sendMail(
+      {
+        to: user.email,
+        subject: `Uw Jadwal-account voor ${schoolNaam}`,
+        html: welkomstEmail(
+          user.name,
+          user.email,
+          wachtwoord,
+          wachtwoordInstellenUrl(token),
+          schoolNaam,
+          WEBAPP_URL
+        ),
+      },
+      { strikt: true }
+    );
+  } catch (err) {
+    await prisma.passwordResetToken.delete({ where: { id: rij.id } }).catch(() => {});
+    throw err;
+  }
+
+  // Alleen de nieuwste mail werkt: oudere, ongebruikte links vervallen.
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { password: wachtwoordHash } }),
+    prisma.passwordResetToken.updateMany({
+      where: { gebruikerId: user.id, gebruikt: false, id: { not: rij.id } },
+      data: { gebruikt: true },
+    }),
+    prisma.passwordResetToken.update({ where: { id: rij.id }, data: { verstuurdOp: new Date() } }),
+  ]);
+}
+
+/**
  * Verstuurt de welkomstmail naar iedereen van deze school die er nog geen heeft
- * gehad. Elk account krijgt daarbij een vers tijdelijk wachtwoord en een nieuwe
- * link van 7 dagen — het oude wachtwoord uit de import is nooit gedeeld, dus er
- * gaat niets verloren. Pas als de mail écht weg is wordt `verstuurdOp` gezet.
+ * gehad. Het oude wachtwoord uit de import is nooit gedeeld, dus er gaat niets
+ * verloren.
  */
 export async function verstuurInloggegevens(
   schoolId: string,
@@ -86,46 +140,14 @@ export async function verstuurInloggegevens(
 
   for (const user of ontvangers) {
     try {
-      const wachtwoord = generatePassword();
-      const token = crypto.randomBytes(32).toString("hex");
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { password: await hash(wachtwoord, 12) },
-      });
-      const rij = await prisma.passwordResetToken.create({
-        data: {
-          token,
-          gebruikerId: user.id,
-          verlooptOp: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-      });
-
-      await sendMail({
-        to: user.email,
-        subject: `Uw Jadwal-account voor ${schoolNaam}`,
-        html: welkomstEmail(
-          user.name,
-          user.email,
-          wachtwoord,
-          wachtwoordInstellenUrl(token),
-          schoolNaam,
-          WEBAPP_URL
-        ),
-      });
-
-      await prisma.passwordResetToken.update({
-        where: { id: rij.id },
-        data: { verstuurdOp: new Date() },
-      });
+      await verstuurNaarAccount(user, schoolNaam);
       verstuurd++;
-
-      // Resend-limiet is ~2 mails per seconde
-      await wacht(600);
     } catch (err) {
       console.error(`[inloggegevens] ${user.email}`, err);
       mislukt.push({ email: user.email, reden: "Versturen mislukt" });
     }
+    // Resend-limiet is ~2 mails per seconde
+    await wacht(600);
   }
 
   return { verstuurd, mislukt };

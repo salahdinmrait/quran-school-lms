@@ -26,11 +26,24 @@ interface MailOptions {
   html: string;
 }
 
-export async function sendMail({ to, subject, html }: MailOptions): Promise<void> {
+/**
+ * Verstuurt een mail. Standaard slikt dit fouten in (een mislukte notificatie
+ * mag een handeling niet laten mislukken). Met `strikt: true` gooit een
+ * SMTP-fout wél door — voor inloggegevens, waar we alleen mogen registreren dat
+ * de mail weg is als dat ook echt zo is. Op Vercel zonder SMTP-instellingen gooit
+ * de strikte variant ook; lokaal wordt de mail dan alleen gelogd.
+ */
+export async function sendMail(
+  { to, subject, html }: MailOptions,
+  { strikt = false }: { strikt?: boolean } = {}
+): Promise<void> {
   const transporter = getTransporter();
   if (!transporter) {
+    if (strikt && process.env.VERCEL) throw new Error("SMTP is niet geconfigureerd");
     // Graceful fallback: log to console if SMTP is not configured
-    console.log(`[EMAIL - not sent, SMTP not configured]\nTo: ${to}\nSubject: ${subject}`);
+    console.log(`[EMAIL - not sent, SMTP not configured]
+To: ${to}
+Subject: ${subject}`);
     return;
   }
   try {
@@ -42,6 +55,7 @@ export async function sendMail({ to, subject, html }: MailOptions): Promise<void
     });
   } catch (err) {
     console.error("[EMAIL] Failed to send:", err);
+    if (strikt) throw err;
   }
 }
 

@@ -419,6 +419,58 @@ export async function draai(c: Ctx) {
     verwachtGeweigerd("inloggegevens versturen zonder dev-cookie", a);
   }
 
+  groep("Inloggegevens per account");
+
+  {
+    const laatkomer = await prisma.user.findUniqueOrThrow({ where: { email: e("laatkomer") }, select: { id: true } });
+    const pad = `/api/dev/scholen/${importSchoolId}/accounts/${laatkomer.id}/inloggegevens`;
+
+    {
+      const a = await api("POST", pad, {});
+      verwachtGeweigerd("één account mailen zonder dev-cookie", a);
+    }
+    {
+      const a = await api("POST", pad, { cookie });
+      const r = a.body as { verstuurd: string; nietVerstuurd: number };
+      verwacht(
+        "één account mailen bereikt alleen dat account",
+        a.status === 200 && r?.verstuurd === e("laatkomer") && r?.nietVerstuurd === 0,
+        "KRITIEK",
+        "200, verstuurd = laatkomer, 0 wachtenden",
+        kort(a, 200)
+      );
+    }
+    {
+      // Opnieuw versturen mag (bv. mail kwijt), maar dan werkt alleen de nieuwste link.
+      const a = await api("POST", pad, { cookie });
+      const bruikbaar = await prisma.passwordResetToken.count({
+        where: { gebruikerId: laatkomer.id, gebruikt: false },
+      });
+      verwacht(
+        "opnieuw versturen trekt de vorige link in",
+        a.status === 200 && bruikbaar === 1,
+        "HOOG",
+        "200 en precies 1 bruikbare link",
+        `${a.status}, ${bruikbaar} bruikbaar`
+      );
+    }
+    {
+      // Een account van een andere school via deze school-URL: niet vindbaar.
+      const a = await api(
+        "POST",
+        `/api/dev/scholen/${importSchoolId}/accounts/${c.f.leerlingA1.id}/inloggegevens`,
+        { cookie }
+      );
+      verwachtStatus("account van een andere school mailen via deze school geeft 404", a, 404, "KRITIEK");
+    }
+    {
+      await prisma.user.update({ where: { id: laatkomer.id }, data: { verwijderdOp: new Date() } });
+      const a = await api("POST", pad, { cookie });
+      verwachtStatus("een gearchiveerd account krijgt geen inloggegevens", a, 409, "HOOG");
+      await prisma.user.update({ where: { id: laatkomer.id }, data: { verwijderdOp: null } });
+    }
+  }
+
   groep("Opruimen van de importschool");
 
   {
